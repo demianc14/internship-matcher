@@ -1,33 +1,91 @@
 # internship-matcher
 
-Pipeline de datos que busca pasantías/empleos, las normaliza y calcula un score de
-compatibilidad **explicable** contra mi perfil de habilidades y `Base_CV.tex`.
+Pipeline de datos que reúne vacantes de varias fuentes, las normaliza y calcula un
+score de compatibilidad **explicable** contra mi perfil, más sugerencias de qué partes
+de mi CV activar para cada vacante.
 
-> Estado: **Fase 5** cerrada (RemoteOK + fuente manual para Quito + embeddings activos).
+No es un scraper ni un chatbot: es un ETL con principios fail-fast, funciones puras
+testeables y un reporte de calidad cuantificado — mismo espíritu que
+[world-cup-predictor](https://github.com/demianc14/WC_predictor) y
+[MetalurgicaAndina_QC](https://github.com/demianc14/MetalurgicaAndina_QC).
 
-## Setup
+> Estado: fases 0–6 cerradas. 163 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
+
+## Qué produce
+
+```
+[APTA] 82/100  Pasante de Datos — Acme Ecuador
+  https://www.multitrabajos.com/empleos/pasante-datos-1
+  componentes: skills 82
+  ✓ skills: pandas (demostrado), power bi (en_formacion), python (demostrado), sql (demostrado)
+
+## Pasante de Datos  (manual:pasante-datos-acme)
+
+Destacar estos bullets (ya cubren lo que piden):
+  • [b01] Automaticé un reporte de ~500 filas con Python y pandas…
+      cubre: pandas, python  ·  Pasante de Datos
+      ⚠ CONFIRMAR (línea 24): que las 500 filas sean del proceso correcto y no de otro reporte.
+
+Nombrar explícitamente (la tienes, pero ningún bullet la dice):
+  • sql → un bullet de «App de Eventos»: esa entrada usa mysql, que implica sql
+  • power bi → Habilidades: el CV la marca en formación; no la presentes como dominada
+
+Brechas reales (no están en tu CV; no agregar sin respaldo):
+  looker, tableau
+```
+
+## Quickstart
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest && ruff check . && mypy src tests
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"                 # + ".[semantic]" para embeddings (~1,5 GB)
 
-python -m src.cli            # reprocesa el snapshot más reciente de data/raw/
-python -m src.cli --fetch    # trae 1 página fresca de Arbeitnow
-python -m src.cli --semantic # + embeddings (requiere pip install -e ".[semantic]")
-python -m src.cli --suggest 3 # + sugerencias de CV para las 3 mejores
-python -m src.cli --nueva pasante-datos-acme  # plantilla de vacante manual
+python -m src.cli                       # reprocesa los snapshots de data/raw/
+python -m src.cli --fetch               # trae datos frescos de Arbeitnow + RemoteOK
+python -m src.cli --suggest 3           # + sugerencias de CV para las 3 mejores
+python -m src.cli --semantic            # + componente semántico (embeddings locales)
+python -m src.cli --nueva pasante-acme  # plantilla para pegar una vacante de Quito
+
+pytest && ruff check . && mypy src tests
 ```
+
+## Arquitectura
+
+```
+src/etl/schema.py      contrato compartido: RawVacante (crudo) y Vacante (normalizada)
+src/etl/extract.py     fetch crudo por fuente (Arbeitnow, RemoteOK) + snapshots
+src/etl/manual.py      fuente manual: un .md por vacante pegada a mano
+src/etl/transform.py   normaliza, deduplica, extrae keywords, arma el reporte de calidad
+src/etl/match.py       score explicable + veredicto de encaje contra el perfil
+src/etl/embeddings.py  adaptador opcional a sentence-transformers
+src/cv/parser.py       Base CV.tex → secciones, entradas, bullets y sus marcas
+src/cv/suggest.py      qué bullets activar / qué nombrar / qué falta, por vacante
+src/cli.py             corre todo y escribe data/processed/
+config/                perfil, vocabulario y ciudades: datos, no código
+```
+
+**Principios que sostienen el diseño**
+
+1. **Extract sin lógica de negocio.** Las fuentes solo mapean campos al contrato. Toda
+   interpretación vive en `transform`/`match`.
+2. **Un solo contrato.** API y fuente manual emiten `RawVacante`; de ahí en adelante el
+   pipeline no sabe de dónde vino cada vacante.
+3. **Fail-fast con escalación documentada.** Ningún default silencioso: cada campo
+   clasificado tiene valor + evidencia citada, o `None` + motivo.
+4. **Degradación elegante.** Si una fuente cae o cambia de forma, queda en
+   `source_error` y el run sigue con las demás.
+5. **La configuración es data.** Perfil, vocabulario y ciudades son YAML auditables,
+   no constantes escondidas en el motor.
 
 ## Fuentes
 
 | Fuente | Cobertura | Notas |
 |---|---|---|
-| [Arbeitnow](https://www.arbeitnow.com/) | Europa (sobre todo Alemania), 250/página | Gratis, sin key. 1 página por corrida: sus términos piden no abusar. |
-| [Remote OK](https://remoteok.com/) | Remoto global, ~99 por llamada | Gratis, sin key. Todas sus vacantes son remotas → señal estructurada. Sus términos exigen mencionar y enlazar la fuente: las vacantes enlazan a remoteok.com. |
-| Manual (`data/manual/*.md`) | Quito e híbrido | La que de verdad cubre mi prioridad. |
-| Adzuna | — | Pendiente: verificar si cubre Ecuador antes de integrarla. |
+| [Arbeitnow](https://www.arbeitnow.com/) | Europa, sobre todo Alemania (250/página) | Gratis, sin key. 1 página por corrida: sus términos piden no abusar. |
+| [Remote OK](https://remoteok.com/) | Remoto global (~99 por llamada) | Gratis, sin key. Todo su catálogo es remoto → señal estructurada. Sus términos exigen mencionar y enlazar la fuente; las vacantes enlazan a remoteok.com. |
+| Manual (`data/manual/*.md`) | Quito, híbrido y presencial | La única que cubre mi prioridad real. |
+| ~~Adzuna~~ | — | **Descartada:** su API cubre 19 países (`gb us at au be br ca ch de es fr in it mx nl nz pl sg za`). Ecuador no está; en LatAm solo Brasil y México. |
+| ~~LinkedIn, Computrabajo, Multitrabajos~~ | — | **No se scrapean:** sus ToS lo prohíben y no exponen API pública. Por eso existe la fuente manual. |
 
 ### Fuente manual: escribir lo mínimo
 
@@ -40,169 +98,158 @@ title: Pasante de Análisis de Datos
 (se pega el aviso completo, tal cual)
 ```
 
-Ciudad, modalidad, seniority, jornada, horas, idioma y keywords **no se escriben**:
-los deduce `transform` del texto pegado, con las mismas reglas que las vacantes de
-API. En el ejemplo real de arriba, de esas 3 líneas salen: `Quito` (vía "Cumbayá",
-con `location_source=description`), `hybrid`, `intern`, `4 h/día`, idioma `es` y 6
-keywords. Campos opcionales (`company`, `location`, `modality`, `employment`,
-`posted_at`) solo si el texto no alcanza o hay que corregir la deducción.
+Ciudad, modalidad, seniority, jornada, horas, idioma y keywords **no se escriben**: los
+deduce `transform` del texto pegado, con las mismas reglas que las vacantes de API. De
+esas tres líneas, un aviso real produjo: `Quito` (deducido de "Cumbayá"), `hybrid`,
+`intern`, `4 h/día`, idioma `es` y 6 keywords. Campos opcionales (`company`,
+`location`, `modality`, `employment`, `posted_at`) solo si el texto no alcanza o hay
+que corregir la deducción.
 
-Se eligió un archivo por vacante y no un CSV: pegar un aviso con saltos de línea,
-comas y comillas en una celda de CSV es la parte más fácil de arruinar a mano. Un
-archivo mal formado no rompe el run — se reporta con su motivo, como cualquier
-registro rechazado.
+Se eligió un archivo por vacante en vez de un CSV: pegar un aviso con saltos de línea,
+comas y comillas dentro de una celda es la parte más fácil de arruinar a mano. Un
+archivo mal formado no rompe el run — se reporta con su motivo, como cualquier registro
+rechazado.
 
+## Transform: reglas de clasificación
 
-## Decisiones
+Cada campo clasificado es un `Resolved` con **valor + origen + evidencia citada**, o
+`None` + motivo: `no_signal`, `conflict` (se citan ambas señales), `weak_signal`
+(solo "home office") o `unknown_value`.
 
-- **Vacantes locales (Quito, híbrido/presencial): fuente manual CSV** — camino (b).
-  Computrabajo y Multitrabajos no exponen API pública, y no se scrapean. Las vacantes
-  que encuentre a mano van en `data/manual/*.csv` y se procesan con el mismo esquema,
-  transform y scoring que las de API. El esquema común se diseña desde la Fase 1
-  pensando en esta fuente; el loader se implementa en la Fase 5.
-
-## Extract (Fase 1)
-
-- `src/etl/schema.py`: `RawVacante`, contrato compartido por todas las fuentes. Solo
-  valida estructura; modalidad/ubicación/jornada quedan como texto crudo (`*_raw`).
-- `src/etl/extract.py`: `parse_arbeitnow` (pura) + `fetch_arbeitnow` (HTTP, nunca
-  lanza). Registros que no cumplen el contrato se **rechazan con motivo**, no se
-  corrigen. Si la API cae o cambia de forma, queda en `source_error` y el run sigue.
-- Snapshot crudo de cada fetch en `data/raw/<fuente>_<timestamp>.json`.
-- Por defecto se trae 1 página (250 vacantes): los términos de Arbeitnow piden no abusar.
-
-## Transform (Fase 2)
-
-`src/etl/transform.py` convierte `RawVacante` → `Vacante`. Cada campo clasificado es un
-`Resolved` con **valor + origen + evidencia citada**, o `None` + motivo:
-`no_signal` (no hay dato), `conflict` (señales contradictorias, se citan ambas),
-`weak_signal` (solo "home office"/"work from anywhere") o `unknown_value` (valor del
-CSV manual que no está en el vocabulario). Nunca hay un default silencioso.
-
-| Campo | Fuentes de señal | Regla clave |
+| Campo | Señales | Regla clave |
 |---|---|---|
-| Modalidad | structured > location > title > description | Se usa el primer nivel con señal. `remote=false` no implica presencial. Menciones negadas ("do not offer remote work") se ignoran. |
-| Seniority | título + `employment_raw` | Etiquetas distintas = conflicto, salvo `entry` + `intern`/`student_job` (nivel vs. tipo de puesto: gana el más específico). |
-| Jornada | título + `employment_raw` | "Full or part time" = conflicto. No se infiere de la descripción (los beneficios mencionan "part-time options"). |
+| Modalidad | structured > location > title > description | Se usa el primer nivel con señal. `remote=false` no implica presencial. Las menciones negadas ("do not offer remote work") se ignoran. |
+| Ubicación | campo de la fuente; si falta, el texto | Ciudades de `config/locations.yaml`; los valles de Quito mapean a Quito. Dos ciudades distintas ⇒ sin ubicación. |
+| Seniority | título + `employment_raw` | Etiquetas distintas = conflicto, salvo `entry` + `intern`/`student_job` (nivel vs. tipo de puesto: gana el específico). |
+| Jornada | título + `employment_raw` | "Full or part time" = conflicto. No se infiere de la descripción: los beneficios mencionan "part-time options". |
 | Horas | título + descripción | Solo explícitas y plausibles (≤12 h/día, ≤60 h/semana). No se convierte semana↔día. |
-| Idioma | descripción | Stopwords en/de/es/fr; sin ganador claro (≥2x) = `None`. |
-| Keywords | título + descripción | Vocabulario genérico en `config/keyword_vocabulary.yaml` (no es mi perfil). |
+| Idioma | descripción | Stopwords en/de/es/fr; sin ganador claro ⇒ `None`. Umbral más bajo si no hay evidencia de otro idioma (los avisos locales son cortos). |
+| Keywords | título + descripción | `config/keyword_vocabulary.yaml`, con alias en es/en/de e implicaciones (MySQL ⇒ SQL). |
 
-**Dedup:** mismo id → se queda el más reciente. Mismo título+empresa+ubicación
-normalizados → duplicado entre fuentes (solo si hay empresa y ubicación). Mismo
-título+empresa en **otra ciudad se conserva**: en los datos reales casi siempre es el
-mismo puesto abierto en varias ciudades; se lista como "posible duplicado".
+**Dedup:** mismo id ⇒ se queda el más reciente. Mismo título+empresa+ubicación
+normalizados ⇒ duplicado entre fuentes. Mismo título+empresa en **otra ciudad se
+conserva**: en los datos reales casi siempre es el mismo puesto abierto en varias
+sedes; se lista como "posible duplicado".
 
-### Reporte de calidad (snapshot real Arbeitnow, 2026-09-21)
+### Reporte de calidad (corrida real, 2026-09-22)
 
 | Decisión | Cantidad |
 |---|---|
-| Registros recibidos / rechazados por contrato | 250 / 0 |
-| Duplicados removidos (título+empresa+ubicación) | 1 |
-| Posibles duplicados conservados (grupos, otra ciudad) | 6 |
-| Vacantes resultantes | 249 |
-| Modalidad: híbrido / presencial / remoto | 28 / 20 / 19 |
-| Modalidad sin resolver: sin señal / conflicto / señal débil | 153 / 16 / 13 |
-| Seniority: senior / student_job / mid / intern / entry | 84 / 10 / 9 / 5 / 1 |
-| Seniority sin resolver: sin señal / conflicto | 133 / 7 |
-| Jornada: full / part / sin señal / conflicto | 128 / 11 / 109 / 1 |
-| Con horas explícitas | 4 |
-| Idioma: en / de / fr / sin resolver | 187 / 34 / 26 / 2 |
-| En Quito | 0 (ubicación desconocida: 9) |
-| Sin keywords reconocidas | 36 |
+| Recibidas: Arbeitnow / RemoteOK / manual | 250 / 99 / 0 |
+| Rechazadas por contrato | 0 |
+| Duplicados removidos / posibles duplicados conservados | 1 / 8 grupos |
+| Vacantes resultantes | 348 |
+| Modalidad: remoto / híbrido / presencial | 125 / 36 / 11 |
+| Modalidad sin resolver: sin señal / débil / conflicto | 150 / 14 / 12 |
+| Seniority: senior / intern / entry / student_job / mid | 101 / 18 / 9 / 6 / 3 |
+| Seniority sin resolver | 211 |
+| Jornada: completa / parcial / sin señal | 177 / 4 / 166 |
+| Con horas explícitas | 11 |
+| Idioma: en / de / fr / es / sin resolver | 274 / 59 / 9 / 2 / 4 |
+| En Quito | 0 (56 sin ubicación) |
+| Sin keywords reconocidas | 87 |
 
-La salida queda en `data/processed/vacantes.jsonl` y `data/processed/quality_report.json`.
+## Match: score y veredicto, separados
 
-## Match (Fase 3)
-
-`config/skills_profile.yaml` es la fuente de verdad de mi perfil, derivada de
-`Base CV.tex`. Sin niveles autoevaluados: el **tier** sale de dónde aparece la skill
-en el CV (`demostrado` = en un bullet de experiencia/proyecto, `listado` = solo en
-Habilidades o por certificación, `en_formacion` = el CV lo dice). Cada skill cita su
-evidencia. El loader falla si una skill no existe en el vocabulario (nunca podría
-matchear) o si un idioma se cuela como skill.
-
-`src/etl/match.py` separa dos cosas a propósito:
-
-- **Score 0–100** = qué tanto encajan mis skills. Componentes con desglose:
-  - *skills*: Σ peso(tier) de las skills pedidas que tengo ÷ max(# pedidas, 3). El
-    mínimo 3 evita el caso real de "100/100" por una vacante que solo menciona
-    `rest api`. Lista ✓ qué matchea (con tier y evidencia del CV) y ✗ qué falta.
-  - *semántico* (opcional): por cada frase de la vacante, el passage del perfil más
-    similar; se reportan los pares. Si no está activo, los pesos se renormalizan y
-    la explicación lo dice.
-- **Veredicto** `apta / revisar / no_apta` = restricciones prácticas, no afecta el
-  score: seniority, modalidad+ubicación (híbrido/presencial fuera de Quito bloquea;
+- **Score 0–100** = cuánto encajan mis skills.
+  - *skills*: Σ peso(tier) de las skills pedidas que tengo ÷ max(nº pedidas, 3). El
+    mínimo de 3 evita el caso real de "100/100" por una vacante que solo menciona
+    `rest api`. Lista ✓ lo que matchea (con tier y evidencia del CV) y ✗ lo que falta.
+  - *semántico* (opcional): similitud del **título** de la vacante con los bullets del
+    CV. Si está apagado, los pesos se renormalizan y la explicación lo dice.
+- **Veredicto** `apta / revisar / no_apta` = restricciones prácticas, fuera del score:
+  seniority, modalidad+ubicación (híbrido/presencial fuera de Quito bloquea;
   **modalidad desconocida nunca descarta**, solo avisa), idioma de la descripción vs.
   mis idiomas de trabajo (≥B2), jornada completa y horas fuera de 4–6 h/día.
 
-Resultado sobre el snapshot real (solo skills, sin embeddings): **3 aptas, 83 a
-revisar, 163 no aptas**. Bloqueos: senior 84, descripción en alemán 34 / francés 26,
-híbrido fuera de Quito 27, presencial fuera de Quito 19. 142 de 249 vacantes no
-mencionan ninguna skill del vocabulario (score n/d, no 0).
+Una vacante senior en alemán puede tener buen score de skills y aun así no ser para mí:
+por eso son dos números distintos y no uno solo.
 
-## CV: parser y sugerencias (Fase 4)
+Sobre la corrida real: **35 vacantes con score ≥60**; bloqueos por seniority senior
+(101), descripción en alemán (59) o francés (9), e híbrido/presencial fuera de Quito
+(47).
 
-`src/cv/parser.py` lee `Base CV.tex` (ruta en `cv_path` del perfil; el CV no está en
-el repo) y devuelve secciones, entradas, bullets y filas de habilidades. Entiende las
-marcas de trabajo del propio CV y las asocia a su elemento: `% ADAPTAR`, `% CONFIRMAR`,
-`% AGREGAR`, `% PENDIENTE`, `% OPCIONAL` (en línea propia van al elemento siguiente; al
-final de una línea, a esa; la leyenda del encabezado se ignora). Un `.tex` sin
-`\begin{document}`, sin secciones o sin bullets lanza ValueError en vez de devolver algo
-vacío.
+## Perfil y CV
 
-`src/cv/suggest.py` cruza los gaps de la vacante contra el CV. **Nunca sugiere agregar
-una skill que el CV no respalde** — la misma regla que el CV se pone a sí mismo:
+`config/skills_profile.yaml` es la fuente de verdad, derivada de `Base CV.tex`. No hay
+niveles autoevaluados: el **tier** sale de dónde aparece la skill en el CV
+(`demostrado` = en un bullet de experiencia/proyecto, `listado` = solo en Habilidades o
+por certificación, `en_formacion` = el CV lo dice) y cada una cita su evidencia. El
+loader falla si una skill no está en el vocabulario (nunca podría matchear) o si un
+idioma se cuela como skill.
+
+`src/cv/parser.py` lee el `.tex` y entiende las marcas de trabajo del propio CV
+(`% ADAPTAR`, `% CONFIRMAR`, `% AGREGAR`, `% PENDIENTE`, `% OPCIONAL`), asociándolas a
+su elemento. `src/cv/suggest.py` cruza los gaps de cada vacante contra el CV y **nunca
+sugiere agregar una skill que el CV no respalde** — la misma regla que el CV se pone a
+sí mismo:
 
 | Situación | Sugerencia |
 |---|---|
-| Skill pedida, ya nombrada en un bullet | destacar ese bullet (ordenado por # de skills que cubre) |
-| Skill pedida, en el stack de una entrada pero no en sus bullets | nombrarla en un bullet de esa entrada |
-| Skill pedida, implícita en otra (`implies` del vocabulario: MySQL → SQL) | nombrarla, diciendo de dónde sale |
+| Skill pedida, ya en un bullet | destacar ese bullet |
+| Skill pedida, en el stack de una entrada pero no en sus bullets | nombrarla ahí |
+| Skill pedida, implícita en otra (MySQL ⇒ SQL) | nombrarla, diciendo de dónde sale |
 | Skill pedida, solo en Habilidades | respaldarla en un bullet si es real; si el CV la marca "en formación", no presentarla como dominada |
 | Skill pedida, ausente del CV | brecha: se lista, no se inventa |
 
-Además reordena las secciones marcadas `% ADAPTAR` según la vacante, señala entradas
-`% OPCIONAL` que no aportan, y avisa cuando el Perfil contradice la vacante (dice
-"pasantía híbrida en Quito" y la vacante es remota). Los bullets sugeridos que tengan
-`% CONFIRMAR`/`% PENDIENTE` salen con esa advertencia: no se manda un dato que el CV
-marca como no verificado.
+Además reordena las secciones marcadas `% ADAPTAR`, señala entradas `% OPCIONAL` que no
+aportan y avisa cuando el Perfil contradice la vacante (dice "pasantía híbrida en
+Quito" y la vacante es remota). Los bullets sugeridos que tengan `% CONFIRMAR` o
+`% PENDIENTE` salen con esa advertencia: no se manda un dato que el propio CV marca
+como no verificado. `profile_consistency()` audita que el perfil siga derivado del CV
+(hoy: 0 skills de más, 0 de menos).
 
-`profile_consistency()` audita que `skills_profile.yaml` siga derivado del CV. Sobre el
-CV real: 0 skills de más y 0 de menos.
+## Calidad
 
-## Limitaciones conocidas
+```
+163 tests · 96 % de cobertura · ruff y mypy limpios
+transform 97 % · match 98 % · cv/parser 97 % · cv/suggest 95 % · manual 100 % · cli 89 %
+```
 
-- **Arbeitnow no es "remoto/tech" como se asumía.** Corrida real del 2026-09-21:
-  250 vacantes, solo 3 con `remote=true`; el resto son mayormente puestos en Alemania.
-  Además `remote=false` no significa "presencial" (solo "no marcada remota"), así que
-  transform no debe inferir presencialidad de ese flag.
+Ningún test llama a la red: las fuentes se prueban con fixtures recortados de
+respuestas reales, incluidos registros inválidos a propósito. Los tests de integración
+recorren las tres fuentes → transform → match → sugerencias, y verifican la invariante
+del proyecto: **nada desaparece en silencio** (entradas = salidas + rechazadas +
+duplicadas) y todo campo clasificado tiene valor o motivo.
 
-- Las APIs gratuitas (Arbeitnow, RemoteOK) cubren sobre todo remoto global. La
-  cobertura de Quito depende de lo que se cargue manualmente en el CSV.
-- Adzuna: la cobertura de Ecuador/LatAm está **pendiente de verificar**.
-- **61% de las vacantes quedan con modalidad sin resolver (182/249)**, casi todas por
-  falta de señal. Es a propósito: bajar el umbral significaría adivinar. El match
-  (Fase 3) tiene que tratar `modality=None` como "desconocida", no como "descartar".
-- **Las reglas de modalidad son regex con contexto, no NLP.** Se calibraron sobre un
-  solo snapshot (en/de/fr). Un "Office-based role… four days a week" queda como
-  presencial aunque probablemente sea híbrido (el número va en palabras). La evidencia
-  queda citada en cada vacante para poder auditarlo.
-- **Keywords de idioma son ruidosas:** "German" matchea tanto "fluent German" como
-  "a German company". Sirven como pista, no como requisito confirmado.
+El CV real no está en el repo (tiene datos personales): los tests usan
+`tests/fixtures/cv_sample.tex`, y hay un test contra el CV real que se salta si no está
+en la máquina.
+
+## Limitaciones honestas
+
+- **Las APIs gratuitas casi no sirven para mi caso.** De 348 vacantes reales, **0 en
+  Quito**. Arbeitnow es sobre todo Alemania y RemoteOK es remoto global con mucho
+  puesto senior. El segmento que me importa depende de la fuente manual. El pipeline
+  funciona; el problema es la oferta disponible por API.
+- **43 % de las vacantes quedan con modalidad sin resolver** (150/348, casi todas por
+  falta de señal). Es deliberado: bajar el umbral sería adivinar. El match las trata
+  como "desconocida", no las descarta.
+- **Las reglas son regex con contexto, no NLP.** Se calibraron sobre snapshots reales
+  en en/de/fr. Un "Office-based role… four days a week" queda como presencial aunque
+  probablemente sea híbrido (el número va en palabras). Cada clasificación cita su
+  evidencia para poder auditarla.
+- **El componente semántico usa solo el título.** Medido sobre el snapshot real,
+  comparar el cuerpo completo **no discrimina**: 0.464 para una pasantía de research vs.
+  0.467 para atención al cliente en alemán, porque todos los avisos comparten relleno
+  genérico. El título sí separa (0.522 vs. 0.28). La calibración 0.30–0.60 sale de la
+  distribución real (p50 0.33, p90 0.49) con `paraphrase-multilingual-MiniLM-L12-v2`;
+  hay que rehacerla si cambia el modelo.
+- **Las keywords de idioma son ruidosas:** "German" matchea tanto "fluent German" como
+  "a German company". Sirven como aviso, no como requisito confirmado.
 - **No se separa la sección de requisitos** de la descripción: las keywords salen del
-  texto completo (beneficios incluidos). Queda pendiente para la Fase 3 si el match lo
-  necesita.
-- **Arbeitnow casi no tiene vacantes para mi perfil.** Las 3 "aptas" son de ventas
-  (Account Executive) con 0 skills en común: pasan las restricciones pero no encajan.
-  Sin el componente semántico, el score no distingue dominio (ventas vs. datos) cuando
-  la vacante no nombra herramientas. El pipeline funciona; la fuente no sirve para
-  este perfil. RemoteOK y el CSV manual de Quito (Fase 5) son los que importan.
-- **El componente semántico usa solo el título de la vacante.** Medido sobre el
-  snapshot real: comparar el cuerpo completo NO discrimina (0.464 para una pasantía de
-  research vs. 0.467 para atención al cliente en alemán) porque todos los avisos
-  comparten relleno genérico. El título sí separa (0.522 vs. 0.28). El cuerpo se
-  aprovecha en el componente de skills, que sale de sus keywords.
-- **La calibración 0.30–0.60 sale de la distribución real** de ese snapshot (p50 0.33,
-  p90 0.49, máx 0.67) con `paraphrase-multilingual-MiniLM-L12-v2`. Hay que
-  re-calibrarla si cambia el modelo o entran fuentes muy distintas.
+  texto completo, beneficios incluidos.
+- **`src/etl/embeddings.py` no tiene cobertura de tests** (0 %): probarlo exigiría
+  descargar el modelo en cada corrida de tests. Es un adaptador de ~10 líneas y se
+  valida a mano; el resto del match se prueba con un embedder falso determinista.
+
+## Decisiones
+
+- **Fuente para Quito: archivos manuales, no CSV** ni scraping de bolsas locales.
+- **Adzuna descartada** tras verificar que su API no cubre Ecuador.
+- **Sin FastAPI:** el CLI cubre el flujo completo y no hay otro consumidor; agregar
+  endpoints habría sido superficie sin uso.
+- **Score y encaje separados**, en vez de un único número que mezcle "sé hacer esto"
+  con "puedo tomar este trabajo".
+- **Modalidad desconocida no descarta:** con 43 % de vacantes sin señal, descartarlas
+  habría escondido justo las que hay que revisar a mano.

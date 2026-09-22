@@ -198,3 +198,6 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
   discrimina (medido). Calibración 0.30–0.60 desde la distribución real.
 - **2026-09-22 — RemoteOK:** integrado; sus términos exigen mencionar y enlazar la
   fuente. Su texto llega con mojibake y se repara en transform.
+- **2026-09-22 — Fase 6:** sin FastAPI (el CLI cubre el flujo; `src/api/` eliminado).
+  Adzuna descartada: su API cubre 19 países y Ecuador no está. Tests de integración
+  con las tres fuentes; la fuente manual puede correr sola, sin snapshots de API.

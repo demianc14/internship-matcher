@@ -39,6 +39,14 @@ CITIES_PATH = ROOT / "config" / "locations.yaml"
 MANUAL_DIR = ROOT / "data" / "manual"
 
 
+def rel(path: Path) -> str:
+    """Ruta relativa al repo para imprimir; absoluta si está fuera (p. ej. en tests)."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fetch", action="store_true", help="traer datos frescos de la API")
@@ -59,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         except FileExistsError as exc:
             print(f"Ya existe: {exc}", file=sys.stderr)
             return 1
-        print(f"Creado {path.relative_to(ROOT)} — llena url/title y pega el aviso.")
+        print(f"Creado {rel(path)} — llena url/title y pega el aviso.")
         return 0
 
     records, rejected = [], []
@@ -76,9 +84,6 @@ def main(argv: list[str] | None = None) -> int:
         latest = {}  # el snapshot más reciente de cada fuente
         for path in sorted(RAW_DIR.glob("*.json")):
             latest[path.name.rsplit("_", 1)[0]] = path
-        if not latest:
-            print("No hay snapshots en data/raw/. Corre con --fetch.", file=sys.stderr)
-            return 1
         for source, path in latest.items():
             snap_records, snap_rejected = records_from_snapshot(path)
             records += snap_records
@@ -89,6 +94,14 @@ def main(argv: list[str] | None = None) -> int:
     records = [*records, *manual.records]
     rejected = [*rejected, *manual.rejected]
     print(f"Extract (manual): {len(manual.records)} válidas, {len(manual.rejected)} rechazadas")
+
+    if not records:  # la fuente manual sola basta: es la que cubre Quito
+        print(
+            "No hay vacantes: ni snapshots en data/raw/ (corre con --fetch) ni archivos "
+            "en data/manual/ (créalos con --nueva).",
+            file=sys.stderr,
+        )
+        return 1
 
     vocab = load_vocabulary(VOCAB_PATH)
     profile = load_profile(PROFILE_PATH, vocab)  # antes de trabajar: config inválida falla ya
@@ -154,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
             print(suggester.suggest(by_id[r.vacante_id]).render())
 
     written = (out, report_path, matches_path)
-    print("\nEscrito: " + ", ".join(str(p.relative_to(ROOT)) for p in written))
+    print("\nEscrito: " + ", ".join(rel(p) for p in written))
     return 0
 
 
