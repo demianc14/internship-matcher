@@ -203,23 +203,34 @@ def score_semantic(
     passage_vecs: Sequence[Sequence[float]],
     embedder: Embedder,
     calibration: Calibration,
-    top_k: int = 5,
+    top_k: int = 3,
 ) -> SemanticBreakdown:
-    """Por cada frase de la vacante, su mejor passage del perfil. Valor = media de
-    las `top_k` mejores similitudes, calibrada a [0, 1]."""
-    sentences = [v.title, *split_sentences(v.description_text)]
-    vecs = embedder.encode(sentences)
-    best: list[SemanticPair] = []
-    for sentence, vec in zip(sentences, vecs, strict=True):
-        sims = [_cosine(vec, pv) for pv in passage_vecs]
-        i = max(range(len(sims)), key=sims.__getitem__)
-        best.append(SemanticPair(vacancy_sentence=sentence, profile_passage=passages[i],
-                                 similarity=round(sims[i], 4)))  # fmt: skip
-    best.sort(key=lambda p: p.similarity, reverse=True)
-    raw = sum(p.similarity for p in best[:top_k]) / min(top_k, len(best))
+    """Similitud del TÍTULO de la vacante con el passage más parecido del perfil.
+
+    Medido sobre el snapshot real (2026-09-21, 249 vacantes): comparar el cuerpo
+    completo NO discrimina — la media de las mejores frases daba 0.464 a una
+    pasantía de research y 0.467 a atención al cliente en alemán, porque todos los
+    avisos comparten relleno genérico ("buscamos a alguien que…"). El título sí:
+    0.522 vs 0.28 en ese mismo par. Por eso el componente usa el título, y el
+    cuerpo queda para las keywords del componente de skills.
+    """
+    (title_vec,) = embedder.encode([v.title])
+    pairs = sorted(
+        (
+            SemanticPair(
+                vacancy_sentence=v.title,
+                profile_passage=passage,
+                similarity=round(_cosine(title_vec, pv), 4),
+            )
+            for passage, pv in zip(passages, passage_vecs, strict=True)
+        ),
+        key=lambda p: p.similarity,
+        reverse=True,
+    )
+    raw = pairs[0].similarity
     span = calibration.high - calibration.low
     value = min(1.0, max(0.0, (raw - calibration.low) / span))
-    return SemanticBreakdown(value=value, raw_similarity=round(raw, 4), top_pairs=best[:3])
+    return SemanticBreakdown(value=value, raw_similarity=raw, top_pairs=pairs[:top_k])
 
 
 # --- Encaje (fit) ----------------------------------------------------------------
@@ -341,10 +352,20 @@ _VERDICT_ORDER = {"apta": 0, "revisar": 1, "no_apta": 2}
 
 
 class Matcher:
-    def __init__(self, profile: Profile, embedder: Embedder | None = None) -> None:
+    def __init__(
+        self,
+        profile: Profile,
+        embedder: Embedder | None = None,
+        passages: Sequence[str] | None = None,
+    ) -> None:
+        """`passages`: textos del perfil contra los que se compara la vacante. Por
+        defecto, el resumen + la evidencia de cada skill; la CLI pasa los bullets
+        del CV, que son más específicos."""
         self.profile = profile
         self.embedder = embedder
-        self.passages = [profile.summary.strip(), *(s.evidence for s in profile.skills.values())]
+        self.passages = list(passages) if passages else [
+            profile.summary.strip(), *(s.evidence for s in profile.skills.values())
+        ]
         self.passage_vecs = embedder.encode(self.passages) if embedder else []
 
     def match(self, v: Vacante) -> MatchResult:

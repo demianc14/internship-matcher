@@ -3,7 +3,7 @@
 Pipeline de datos que busca pasantías/empleos, las normaliza y calcula un score de
 compatibilidad **explicable** contra mi perfil de habilidades y `Base_CV.tex`.
 
-> Estado: **Fase 4** cerrada (parser de `Base CV.tex` + motor de sugerencias por vacante).
+> Estado: **Fase 5** cerrada (RemoteOK + fuente manual para Quito + embeddings activos).
 
 ## Setup
 
@@ -17,7 +17,41 @@ python -m src.cli            # reprocesa el snapshot más reciente de data/raw/
 python -m src.cli --fetch    # trae 1 página fresca de Arbeitnow
 python -m src.cli --semantic # + embeddings (requiere pip install -e ".[semantic]")
 python -m src.cli --suggest 3 # + sugerencias de CV para las 3 mejores
+python -m src.cli --nueva pasante-datos-acme  # plantilla de vacante manual
 ```
+
+## Fuentes
+
+| Fuente | Cobertura | Notas |
+|---|---|---|
+| [Arbeitnow](https://www.arbeitnow.com/) | Europa (sobre todo Alemania), 250/página | Gratis, sin key. 1 página por corrida: sus términos piden no abusar. |
+| [Remote OK](https://remoteok.com/) | Remoto global, ~99 por llamada | Gratis, sin key. Todas sus vacantes son remotas → señal estructurada. Sus términos exigen mencionar y enlazar la fuente: las vacantes enlazan a remoteok.com. |
+| Manual (`data/manual/*.md`) | Quito e híbrido | La que de verdad cubre mi prioridad. |
+| Adzuna | — | Pendiente: verificar si cubre Ecuador antes de integrarla. |
+
+### Fuente manual: escribir lo mínimo
+
+`python -m src.cli --nueva <slug>` crea la plantilla. Solo se llenan **tres cosas**:
+
+```
+url: https://www.multitrabajos.com/empleos/pasante-de-datos-1234567
+title: Pasante de Análisis de Datos
+---
+(se pega el aviso completo, tal cual)
+```
+
+Ciudad, modalidad, seniority, jornada, horas, idioma y keywords **no se escriben**:
+los deduce `transform` del texto pegado, con las mismas reglas que las vacantes de
+API. En el ejemplo real de arriba, de esas 3 líneas salen: `Quito` (vía "Cumbayá",
+con `location_source=description`), `hybrid`, `intern`, `4 h/día`, idioma `es` y 6
+keywords. Campos opcionales (`company`, `location`, `modality`, `employment`,
+`posted_at`) solo si el texto no alcanza o hay que corregir la deducción.
+
+Se eligió un archivo por vacante y no un CSV: pegar un aviso con saltos de línea,
+comas y comillas en una celda de CSV es la parte más fácil de arruinar a mano. Un
+archivo mal formado no rompe el run — se reporta con su motivo, como cualquier
+registro rechazado.
+
 
 ## Decisiones
 
@@ -164,5 +198,11 @@ CV real: 0 skills de más y 0 de menos.
   Sin el componente semántico, el score no distingue dominio (ventas vs. datos) cuando
   la vacante no nombra herramientas. El pipeline funciona; la fuente no sirve para
   este perfil. RemoteOK y el CSV manual de Quito (Fase 5) son los que importan.
-- **La calibración semántica (0.20–0.70) es provisional:** no se ha validado con el
-  modelo real sobre vacantes reales.
+- **El componente semántico usa solo el título de la vacante.** Medido sobre el
+  snapshot real: comparar el cuerpo completo NO discrimina (0.464 para una pasantía de
+  research vs. 0.467 para atención al cliente en alemán) porque todos los avisos
+  comparten relleno genérico. El título sí separa (0.522 vs. 0.28). El cuerpo se
+  aprovecha en el componente de skills, que sale de sus keywords.
+- **La calibración 0.30–0.60 sale de la distribución real** de ese snapshot (p50 0.33,
+  p90 0.49, máx 0.67) con `paraphrase-multilingual-MiniLM-L12-v2`. Hay que
+  re-calibrarla si cambia el modelo o entran fuentes muy distintas.

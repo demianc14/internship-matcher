@@ -192,3 +192,9 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
 - **2026-09-22 — Fase 4:** sugerencias nunca inventan skills; `implies` en el
   vocabulario (MySQL → SQL) ubica skills respaldadas indirectamente. El CV real no
   entra al repo: los tests usan `tests/fixtures/cv_sample.tex`.
+- **2026-09-22 — Fase 5:** fuente manual = un archivo .md por vacante (url + title +
+  aviso pegado); todo lo demás se deduce. Se descartó el CSV por el escapado a mano.
+- **2026-09-22 — Semántico:** solo título vs bullets del CV; el cuerpo completo no
+  discrimina (medido). Calibración 0.30–0.60 desde la distribución real.
+- **2026-09-22 — RemoteOK:** integrado; sus términos exigen mencionar y enlazar la
+  fuente. Su texto llega con mojibake y se repara en transform.

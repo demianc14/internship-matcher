@@ -11,7 +11,14 @@ import pytest
 import requests
 from pydantic import ValidationError
 
-from src.etl.extract import ARBEITNOW_URL, fetch_arbeitnow, parse_arbeitnow
+from src.etl.extract import (
+    ARBEITNOW_URL,
+    fetch_arbeitnow,
+    fetch_remoteok,
+    parse_arbeitnow,
+    parse_remoteok,
+    records_from_snapshot,
+)
 from src.etl.schema import FetchResult, RawVacante
 
 FIXTURE = Path(__file__).parent / "fixtures" / "arbeitnow_page1.json"
@@ -184,3 +191,66 @@ def test_contract_rejects_unknown_fields_and_sources() -> None:
         RawVacante.model_validate({**base, "source": "linkedin"})
     with pytest.raises(ValidationError):
         RawVacante.model_validate({**base, "source": "manual", "modality": "remoto"})
+
+
+# --- RemoteOK --------------------------------------------------------------------
+
+REMOTEOK_FIXTURE = Path(__file__).parent / "fixtures" / "remoteok.json"
+
+
+@pytest.fixture
+def remoteok_payload() -> list[Any]:
+    data: list[Any] = json.loads(REMOTEOK_FIXTURE.read_text(encoding="utf-8"))
+    return data
+
+
+def test_parse_remoteok_skips_legal_notice_and_marks_remote(remoteok_payload: list[Any]) -> None:
+    records, rejected = parse_remoteok(remoteok_payload, NOW)
+
+    assert len(records) == 3  # 5 elementos: aviso legal + 3 válidas + 1 inválida
+    assert all(r.source == "remoteok" and r.modality_raw == "remote=true" for r in records)
+    assert [e.source_id for e in rejected] == ["sin-titulo"]
+    assert rejected[0].reason.startswith("title:")
+
+
+def test_parse_remoteok_keeps_empty_location_raw(remoteok_payload: list[Any]) -> None:
+    records, _ = parse_remoteok(remoteok_payload, NOW)
+    assert "" in [r.location_raw for r in records]  # sin interpretar; transform decide
+
+
+@pytest.mark.parametrize("bad", [None, {}, [], "texto"])
+def test_parse_remoteok_raises_on_api_shape_change(bad: Any) -> None:
+    with pytest.raises(ValueError, match="cambió la API"):
+        parse_remoteok(bad, NOW)
+
+
+def test_fetch_remoteok_writes_snapshot_and_survives_failure(
+    remoteok_payload: list[Any], tmp_path: Path
+) -> None:
+    ok = fetch_remoteok(session=FakeSession(FakeResponse(remoteok_payload)), now=NOW,  # type: ignore[arg-type]
+                        snapshot_dir=tmp_path)  # fmt: skip
+    assert ok.ok and len(ok.records) == 3 and ok.pages_fetched == 1
+
+    down = fetch_remoteok(session=FakeSession(requests.ConnectionError("boom")), now=NOW)  # type: ignore[arg-type]
+    assert not down.ok and down.records == [] and "ConnectionError" in (down.source_error or "")
+
+
+def test_snapshot_roundtrip_dispatches_by_source(
+    payload: dict[str, Any], remoteok_payload: list[Any], tmp_path: Path
+) -> None:
+    fetch_arbeitnow(session=FakeSession(FakeResponse(payload)), now=NOW, snapshot_dir=tmp_path)  # type: ignore[arg-type]
+    fetch_remoteok(session=FakeSession(FakeResponse(remoteok_payload)), now=NOW,  # type: ignore[arg-type]
+                   snapshot_dir=tmp_path)  # fmt: skip
+
+    by_source = {}
+    for snapshot in tmp_path.glob("*.json"):
+        records, _ = records_from_snapshot(snapshot)
+        by_source[records[0].source] = len(records)
+    assert by_source == {"arbeitnow": 4, "remoteok": 3}
+
+
+def test_snapshot_of_unknown_source_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "otra.json"
+    path.write_text(json.dumps({"source": "linkedin", "fetched_at": NOW.isoformat(), "pages": []}))
+    with pytest.raises(ValueError, match="fuente desconocida"):
+        records_from_snapshot(path)

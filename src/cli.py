@@ -2,10 +2,13 @@
 
 Uso:
   python -m src.cli              # reprocesa el snapshot más reciente de data/raw/
-  python -m src.cli --fetch      # trae 1 página fresca de Arbeitnow y la procesa
+  python -m src.cli --fetch      # trae datos frescos de Arbeitnow + RemoteOK
   python -m src.cli --semantic   # activa embeddings (requiere el extra [semantic])
   python -m src.cli --top 15     # cuántas vacantes explicar en consola
   python -m src.cli --suggest 3  # + sugerencias de CV para las 3 mejores
+  python -m src.cli --nueva pasante-datos-acme   # plantilla de vacante manual
+
+Las vacantes de data/manual/*.md se cargan siempre: son la fuente para Quito.
 """
 
 import argparse
@@ -16,15 +19,24 @@ from pathlib import Path
 
 from src.cv.parser import parse_cv
 from src.cv.suggest import Suggester, profile_consistency
-from src.etl.extract import fetch_arbeitnow, records_from_snapshot
+from src.etl.extract import fetch_arbeitnow, fetch_remoteok, records_from_snapshot
+from src.etl.manual import load_manual, write_template
 from src.etl.match import Embedder, Matcher, load_profile
-from src.etl.transform import compile_vocabulary, load_implications, load_vocabulary, transform
+from src.etl.transform import (
+    compile_vocabulary,
+    load_cities,
+    load_implications,
+    load_vocabulary,
+    transform,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
 VOCAB_PATH = ROOT / "config" / "keyword_vocabulary.yaml"
 PROFILE_PATH = ROOT / "config" / "skills_profile.yaml"
+CITIES_PATH = ROOT / "config" / "locations.yaml"
+MANUAL_DIR = ROOT / "data" / "manual"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,25 +48,51 @@ def main(argv: list[str] | None = None) -> int:
         "--suggest", type=int, default=0, metavar="N",
         help="sugerencias de adaptación del CV para las N mejores vacantes",
     )  # fmt: skip
+    parser.add_argument(
+        "--nueva", metavar="SLUG", help="crea una plantilla de vacante manual y termina"
+    )
     args = parser.parse_args(argv)
 
+    if args.nueva:
+        try:
+            path = write_template(MANUAL_DIR, args.nueva)
+        except FileExistsError as exc:
+            print(f"Ya existe: {exc}", file=sys.stderr)
+            return 1
+        print(f"Creado {path.relative_to(ROOT)} — llena url/title y pega el aviso.")
+        return 0
+
+    records, rejected = [], []
     if args.fetch:
-        result = fetch_arbeitnow(snapshot_dir=RAW_DIR)
-        if not result.ok:
-            print(f"[arbeitnow] fuente con error: {result.source_error}", file=sys.stderr)
-        records, rejected = result.records, result.rejected
-        print(f"Extract (API): {len(records)} válidas, {len(rejected)} rechazadas")
+        for fetch in (fetch_arbeitnow, fetch_remoteok):
+            result = fetch(snapshot_dir=RAW_DIR)
+            if not result.ok:  # una fuente caída no tumba el run
+                print(f"[{result.source}] fuente con error: {result.source_error}", file=sys.stderr)
+            records += result.records
+            rejected += result.rejected
+            print(f"Extract ({result.source}): {len(result.records)} válidas, "
+                  f"{len(result.rejected)} rechazadas")  # fmt: skip
     else:
-        snapshots = sorted(RAW_DIR.glob("*.json"))
-        if not snapshots:
+        latest = {}  # el snapshot más reciente de cada fuente
+        for path in sorted(RAW_DIR.glob("*.json")):
+            latest[path.name.rsplit("_", 1)[0]] = path
+        if not latest:
             print("No hay snapshots en data/raw/. Corre con --fetch.", file=sys.stderr)
             return 1
-        records, rejected = records_from_snapshot(snapshots[-1])
-        print(f"Extract (snapshot {snapshots[-1].name}): {len(records)} válidas")
+        for source, path in latest.items():
+            snap_records, snap_rejected = records_from_snapshot(path)
+            records += snap_records
+            rejected += snap_rejected
+            print(f"Extract (snapshot {path.name}): {len(snap_records)} válidas")
+
+    manual = load_manual(MANUAL_DIR)
+    records = [*records, *manual.records]
+    rejected = [*rejected, *manual.rejected]
+    print(f"Extract (manual): {len(manual.records)} válidas, {len(manual.rejected)} rechazadas")
 
     vocab = load_vocabulary(VOCAB_PATH)
     profile = load_profile(PROFILE_PATH, vocab)  # antes de trabajar: config inválida falla ya
-    vacantes, report = transform(records, vocab, rejected)
+    vacantes, report = transform(records, vocab, rejected, cities=load_cities(CITIES_PATH))
     print()
     print(report.resumen())
 
@@ -82,7 +120,12 @@ def main(argv: list[str] | None = None) -> int:
         from src.etl.embeddings import SentenceTransformerEmbedder
 
         embedder = SentenceTransformerEmbedder()
-    results = Matcher(profile, embedder).match_all(vacantes)
+
+    # Los bullets del CV son passages más específicos que las evidencias del perfil.
+    cv_path = Path(profile.cv_path).expanduser()
+    cv = parse_cv(cv_path, compile_vocabulary(vocab)) if cv_path.exists() else None
+    passages = [profile.summary.strip(), *(b.text for b in cv.bullets)] if cv else None
+    results = Matcher(profile, embedder, passages).match_all(vacantes)
     matches_path = PROCESSED_DIR / "matches.jsonl"
     matches_path.write_text(
         "".join(r.model_dump_json() + "\n" for r in results), encoding="utf-8"
@@ -96,12 +139,10 @@ def main(argv: list[str] | None = None) -> int:
         print(r.explain())
 
     if args.suggest:
-        cv_path = Path(profile.cv_path).expanduser()
-        if not cv_path.exists():
+        if cv is None:
             print(f"\nNo encuentro el CV en {cv_path} (cv_path en skills_profile.yaml)",
                   file=sys.stderr)  # fmt: skip
             return 1
-        cv = parse_cv(cv_path, compile_vocabulary(vocab))
         audit = profile_consistency(cv, profile)
         if any(audit.values()):
             print(f"\n⚠ perfil y CV desalineados: {audit}", file=sys.stderr)

@@ -20,6 +20,7 @@ from src.etl.transform import (
     detect_language,
     extract_hours,
     extract_keywords,
+    fix_mojibake,
     is_quito,
     load_vocabulary,
     normalize,
@@ -196,6 +197,8 @@ def test_detect_language() -> None:
     assert detect_language("Wir suchen dich und die Zukunft ist mit uns für eine Zeit") == "de"
     assert detect_language("We are looking for you and the team with our tools to the") == "en"
     assert detect_language("Python SQL") is None
+    # aviso corto sin evidencia de otro idioma: alcanza con 3 stopwords
+    assert detect_language("Buscamos pasante para el área de datos, con una beca") == "es"
 
 
 def test_keywords_respect_word_boundaries() -> None:
@@ -261,3 +264,10 @@ def test_transform_on_fixture_counts_everything() -> None:
     summary = report.resumen()
     assert "Rechazados en extract (contrato):         2" in summary
     assert "Vacantes resultantes:                     4" in summary
+
+
+def test_fix_mojibake_repairs_remoteok_text() -> None:
+    broken = b"Hi! I\xc3\xa2\xc2\x80\xc2\x99m Hannah".decode()
+    assert fix_mojibake(broken) == "Hi! I’m Hannah"
+    assert fix_mojibake("pasantía híbrida") == "pasantía híbrida"  # texto sano intacto
+    assert "’" in clean_description(f"<p>{broken}</p>")

@@ -114,6 +114,10 @@ class Vacante(BaseModel):
     url: HttpUrl
     description_text: str
     location: str | None
+    location_source: Literal["field", "description"] | None = Field(
+        default=None, description="'description' ⇒ deducida del texto, no vino como campo"
+    )
+    location_evidence: str | None = None
     is_quito: bool | None
     modality: Resolved
     seniority: Resolved

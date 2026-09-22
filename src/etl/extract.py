@@ -20,11 +20,12 @@ from pydantic import ValidationError
 from src.etl.schema import FetchResult, RawVacante, RecordError
 
 ARBEITNOW_URL = "https://www.arbeitnow.com/api/job-board-api"
+REMOTEOK_URL = "https://remoteok.com/api"
 USER_AGENT = "internship-matcher/0.1 (proyecto personal; uso no comercial)"
 DEFAULT_TIMEOUT_S = 20.0
 
 
-def _validation_reason(exc: ValidationError) -> str:
+def validation_reason(exc: ValidationError) -> str:
     return "; ".join(
         f"{'.'.join(str(p) for p in err['loc']) or '<root>'}: {err['msg']}"
         for err in exc.errors()
@@ -87,7 +88,7 @@ def parse_arbeitnow(
                 RecordError(
                     source="arbeitnow",
                     source_id=slug if isinstance(slug, str) else None,
-                    reason=_validation_reason(exc),
+                    reason=validation_reason(exc),
                 )
             )
     return records, rejected
@@ -135,6 +136,86 @@ def fetch_arbeitnow(
     return result
 
 
+# --- RemoteOK ------------------------------------------------------------------
+#
+# Términos de la API: hay que mencionar Remote OK como fuente y enlazar de vuelta
+# (ver README). El primer elemento del array es ese aviso legal, no una vacante.
+# Todas las vacantes del sitio son remotas por definición, así que `modality_raw`
+# se marca como señal estructurada de la fuente.
+
+
+def parse_remoteok(
+    payload: Any, fetched_at: datetime
+) -> tuple[list[RawVacante], list[RecordError]]:
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("respuesta de RemoteOK sin lista de vacantes: ¿cambió la API?")
+
+    records: list[RawVacante] = []
+    rejected: list[RecordError] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            rejected.append(
+                RecordError(source="remoteok", source_id=None, reason="registro no es objeto")
+            )
+            continue
+        if "legal" in item and "position" not in item:
+            continue  # aviso legal de la cabecera, no es una vacante
+        slug = item.get("slug") or item.get("id")
+        try:
+            records.append(
+                RawVacante.model_validate(
+                    {
+                        "source": "remoteok",
+                        "source_id": slug,
+                        "title": item.get("position"),
+                        "url": item.get("url"),
+                        "company": item.get("company"),
+                        "description_raw": item.get("description"),
+                        "location_raw": item.get("location"),
+                        "modality_raw": "remote=true",  # el sitio es solo remoto
+                        "employment_raw": [],
+                        "tags_raw": item.get("tags") or [],
+                        "posted_at": item.get("date") or item.get("epoch"),
+                        "fetched_at": fetched_at,
+                    }
+                )
+            )
+        except ValidationError as exc:
+            rejected.append(
+                RecordError(
+                    source="remoteok",
+                    source_id=slug if isinstance(slug, str) else None,
+                    reason=validation_reason(exc),
+                )
+            )
+    return records, rejected
+
+
+def fetch_remoteok(
+    session: requests.Session | None = None,
+    snapshot_dir: Path | None = None,
+    now: datetime | None = None,
+) -> FetchResult:
+    """Una sola llamada (la API no pagina). Nunca lanza."""
+    fetched_at = now or datetime.now(UTC)
+    http = session or requests.Session()
+    result = FetchResult(source="remoteok", fetched_at=fetched_at)
+    try:
+        resp = http.get(
+            REMOTEOK_URL, headers={"User-Agent": USER_AGENT}, timeout=DEFAULT_TIMEOUT_S
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        records, rejected = parse_remoteok(payload, fetched_at)
+    except (requests.RequestException, ValueError) as exc:
+        result.source_error = f"{type(exc).__name__}: {exc}"
+        return result
+    result.records, result.rejected, result.pages_fetched = records, rejected, 1
+    if snapshot_dir is not None:
+        save_snapshot("remoteok", [payload], snapshot_dir, fetched_at)
+    return result
+
+
 # --- Snapshots -----------------------------------------------------------------
 
 
@@ -152,7 +233,7 @@ def save_snapshot(source: str, pages: list[Any], directory: Path, fetched_at: da
     return path
 
 
-_PARSERS = {"arbeitnow": parse_arbeitnow}
+_PARSERS = {"arbeitnow": parse_arbeitnow, "remoteok": parse_remoteok}
 
 
 def records_from_snapshot(path: Path) -> tuple[list[RawVacante], list[RecordError]]:

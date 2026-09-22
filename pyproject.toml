@@ -39,3 +39,10 @@ python_version = "3.11"
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
+
+# Las dependencias del extra [semantic] traen stubs con sintaxis de 3.12+; el
+# proyecto declara 3.11, así que no se siguen sus imports.
+[[tool.mypy.overrides]]
+module = ["numpy.*", "torch.*", "sentence_transformers.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

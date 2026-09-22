@@ -52,9 +52,31 @@ class _TextExtractor(HTMLParser):
         self.chunks.append(data)
 
 
+_MOJIBAKE = re.compile(r"[âÂ][\x80-\x9f]")
+
+
+def fix_mojibake(text: str) -> str:
+    """Repara UTF-8 leído como cp1252, que es como llega el texto de RemoteOK
+    (“Iâ\x80\x99m” en vez de “I’m”).
+
+    Solo actúa si el texto tiene ese patrón y la reinterpretación no falla; si no,
+    lo devuelve tal cual (nunca corrompe un texto que ya estaba bien)."""
+    if not _MOJIBAKE.search(text):
+        return text
+    for encoding in ("latin-1", "cp1252"):  # RemoteOK manda latin-1; cp1252 por si acaso
+        try:
+            repaired = text.encode(encoding, errors="strict").decode("utf-8", errors="strict")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        if not _MOJIBAKE.search(repaired):
+            return repaired
+    return text
+
+
 def clean_description(raw: str) -> str:
-    """HTML (posiblemente escapado más de una vez, como en Arbeitnow) → texto plano."""
-    text = raw
+    """HTML (posiblemente escapado más de una vez, como en Arbeitnow) → texto plano.
+    De paso repara el mojibake con el que llega RemoteOK."""
+    text = fix_mojibake(raw)
     for _ in range(3):
         unescaped = html.unescape(text)
         if unescaped == text:
@@ -116,6 +138,42 @@ def normalize_location(location_raw: str | None) -> str | None:
     if not loc or _REMOTE_ONLY_LOCATION.match(loc):
         return None
     return loc
+
+
+Cities = dict[str, list[str]]
+
+
+def load_cities(path: Path) -> Cities:
+    """Lee config/locations.yaml. Config malformada ⇒ ValueError (fail fast)."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    cities = data.get("cities") if isinstance(data, dict) else None
+    if not isinstance(cities, dict) or not cities:
+        raise ValueError(f"{path}: se esperaba un mapa 'cities' no vacío")
+    for canonical, aliases in cities.items():
+        ok = isinstance(aliases, list) and aliases and all(isinstance(a, str) for a in aliases)
+        if not ok:
+            raise ValueError(f"{path}: alias inválidos para {canonical!r}")
+    return {str(c): [str(a) for a in aliases] for c, aliases in cities.items()}
+
+
+def infer_location(text: str, cities: Cities) -> tuple[str | None, str | None]:
+    """Ciudad mencionada en texto libre → (ciudad, evidencia). Dos ciudades distintas
+    ⇒ (None, motivo): no se adivina cuál es la sede."""
+    found: dict[str, str] = {}
+    for canonical, aliases in cities.items():
+        pattern = re.compile(
+            r"(?<![\w])(?:" + "|".join(re.escape(a) for a in aliases) + r")(?![\w])",
+            re.IGNORECASE,
+        )
+        m = pattern.search(text)
+        if m:
+            found[canonical] = _snippet(text, m, 30)
+    if len(found) == 1:
+        ((city, evidence),) = found.items()
+        return city, evidence
+    if len(found) > 1:
+        return None, f"conflicto: {', '.join(sorted(found))}"
+    return None, None
 
 
 def is_quito(location: str | None) -> bool | None:
@@ -331,8 +389,12 @@ _STOPWORDS = {
 }
 
 
-def detect_language(text: str, min_hits: int = 5) -> str | None:
-    """Idioma dominante por stopwords. Mezcla sin ganador claro (<2x) ⇒ None."""
+def detect_language(text: str, min_hits: int = 5, min_hits_unopposed: int = 3) -> str | None:
+    """Idioma dominante por stopwords. Mezcla sin ganador claro (<2x) ⇒ None.
+
+    Con evidencia nula de los otros idiomas basta `min_hits_unopposed`: los avisos
+    locales pegados a mano suelen ser cortos (3–4 stopwords) y quedaban sin idioma.
+    """
     tokens = Counter(re.findall(r"[a-zäöüßéèêàáíóúñç]+", text.casefold()))
     scores = sorted(
         ((sum(tokens[w] for w in words), lang) for lang, words in _STOPWORDS.items()),
@@ -340,6 +402,8 @@ def detect_language(text: str, min_hits: int = 5) -> str | None:
     )
     (best, lang), (second, _) = scores[0], scores[1]
     if best >= min_hits and best >= 2 * second:
+        return lang
+    if second == 0 and best >= min_hits_unopposed:
         return lang
     return None
 
@@ -400,9 +464,16 @@ def extract_keywords(text: str, compiled: dict[str, Pattern[str]]) -> list[str]:
 # --- Normalización de un registro ------------------------------------------------
 
 
-def normalize(raw: RawVacante, compiled_vocab: dict[str, Pattern[str]]) -> Vacante:
+def normalize(
+    raw: RawVacante, compiled_vocab: dict[str, Pattern[str]], cities: Cities | None = None
+) -> Vacante:
     description = clean_description(raw.description_raw)
     location = normalize_location(raw.location_raw)
+    location_source: str | None = "field" if location else None
+    location_evidence: str | None = None
+    if location is None and cities:  # sin campo de ubicación: intentar deducirla del texto
+        location, location_evidence = infer_location(f"{raw.title}. {description}", cities)
+        location_source = "description" if location else None
     return Vacante(
         id=f"{raw.source}:{raw.source_id}",
         source=raw.source,
@@ -412,6 +483,8 @@ def normalize(raw: RawVacante, compiled_vocab: dict[str, Pattern[str]]) -> Vacan
         url=raw.url,
         description_text=description,
         location=location,
+        location_source=location_source,  # type: ignore[arg-type]
+        location_evidence=location_evidence,
         is_quito=is_quito(location),
         modality=classify_modality(raw, description),
         seniority=classify_seniority(raw),
@@ -512,6 +585,7 @@ class TransformReport:
             "seniority": _field_counts(x.seniority for x in v),
             "schedule": _field_counts(x.schedule for x in v),
             "hours": _field_counts(x.hours for x in v),
+            "source": Counter(x.source for x in v),
             "language": Counter(x.language or "sin resolver" for x in v),
             "is_quito": Counter(
                 "ubicación desconocida" if x.is_quito is None else str(x.is_quito) for x in v
@@ -544,9 +618,10 @@ def transform(
     records: Sequence[RawVacante],
     vocab: Vocabulary,
     extract_rejected: Sequence[RecordError] = (),
+    cities: Cities | None = None,
 ) -> tuple[list[Vacante], TransformReport]:
     compiled = compile_vocabulary(vocab)
-    kept, removed, possible = dedup([normalize(r, compiled) for r in records])
+    kept, removed, possible = dedup([normalize(r, compiled, cities) for r in records])
     report = TransformReport(
         n_extract_ok=len(records),
         extract_rejected=list(extract_rejected),
