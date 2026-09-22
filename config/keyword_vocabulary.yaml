@@ -3,7 +3,8 @@
 # No es mi perfil (ese será config/skills_profile.yaml en la Fase 3): esto solo
 # define qué términos se reconocen como requisito/keyword, sin importar si los
 # tengo o no. canónico: [alias...]. El match ignora mayúsculas y exige límites
-# de palabra, así que "java" no matchea dentro de "javascript".
+# de palabra, así que "java" no matchea dentro de "javascript". Alias en en/de/es
+# porque las vacantes (y el CV) vienen en varios idiomas.
 #
 # Excluidos a propósito por ambiguos en texto libre: "R" (letra suelta),
 # "Go" (verbo), "Excel" como verbo ("excel at") → solo "microsoft excel"/"excel skills".
@@ -28,12 +29,13 @@ keywords:
   scikit-learn: [scikit-learn, sklearn]
   pytorch: [pytorch]
   tensorflow: [tensorflow]
-  machine learning: [machine learning, ml engineer]
+  machine learning: [machine learning, ml engineer, aprendizaje automático]
   deep learning: [deep learning]
   nlp: [nlp, natural language processing]
-  statistics: [statistics, statistical, statistik]
-  data analysis: [data analysis, data analytics, datenanalyse]
-  etl: [etl, elt, data pipeline, data pipelines]
+  statistics: [statistics, statistical, statistik, estadística, estadístico, estadísticos,
+               monte carlo]
+  data analysis: [data analysis, data analytics, datenanalyse, análisis de datos]
+  etl: [etl, elt, data pipeline, data pipelines, pipeline de datos, pipelines de datos]
   spark: [spark, pyspark]
   airflow: [airflow]
   dbt: [dbt]
@@ -43,7 +45,9 @@ keywords:
   power bi: [power bi, powerbi]
   tableau: [tableau]
   looker: [looker]
-  excel: [microsoft excel, ms excel, excel skills, advanced excel]
+  # "excel" suelto no: en inglés es verbo ("excel at"). Alias en español acotados.
+  excel: [microsoft excel, ms excel, excel skills, advanced excel, excel avanzado, en excel,
+          y excel]
 
   # Calidad de código
   pydantic: [pydantic]
@@ -61,7 +65,7 @@ keywords:
   jinja2: [jinja2, jinja]
   django: [django]
   flask: [flask]
-  rest api: [rest api, rest apis, restful]
+  rest api: [rest api, rest apis, restful, api rest, apis rest]
   postgresql: [postgresql, postgres]
   mysql: [mysql]
   mongodb: [mongodb]
@@ -94,3 +98,11 @@ keywords:
   spanish: [spanish, spanisch, español]
   french: [french, französisch, francés]
   italian: [italian, italienisch, italiano]
+
+# Implicaciones: tener la clave demuestra también las skills de la lista. Solo las
+# inequívocas (usar MySQL es escribir SQL). Las usa cv/suggest para ubicar dónde
+# nombrar una skill que el CV respalda de forma indirecta.
+implies:
+  mysql: [sql]
+  postgresql: [sql]
+  spring boot: [java]

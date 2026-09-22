@@ -189,3 +189,6 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
   derivados de dónde aparece la skill en el CV, no autoevaluados.
 - **2026-09-22 — Ranking:** no_apta al final; entre apta/revisar ordena el score y el
   veredicto desempata. C++ se mantiene como `listado`.
+- **2026-09-22 — Fase 4:** sugerencias nunca inventan skills; `implies` en el
+  vocabulario (MySQL → SQL) ubica skills respaldadas indirectamente. El CV real no
+  entra al repo: los tests usan `tests/fixtures/cv_sample.tex`.

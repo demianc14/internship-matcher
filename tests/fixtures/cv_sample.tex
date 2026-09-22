@@ -1,0 +1,46 @@
+% ============================================================
+%  CV de prueba: mismas macros y mismas marcas que Base CV.tex,
+%  con datos inventados (el CV real no va al repo).
+%  % ADAPTAR   = ajustar según la vacante.   <- leyenda, no es anotación
+% ============================================================
+\documentclass[11pt, letterpaper]{article}
+\newcommand{\cvsection}[1]{#1}
+\newcommand{\cventry}[2]{#1 #2}
+\newcommand{\skillrow}[2]{#1 #2}
+
+\begin{document}
+
+\cvsection{Perfil}
+Estudiante de computación enfocado en pipelines de datos. Busco una pasantía híbrida en Quito. % ADAPTAR por vacante
+
+\cvsection{Experiencia Profesional}
+\cventry{Pasante de Datos}{Enero -- Junio 2026}
+{\small\textit{Empresa Ejemplo -- Quito}}\\[2pt]
+Pasantía en análisis de datos y automatización.
+
+\begin{itemize}
+  % CONFIRMAR: que las 500 filas sean del proceso correcto
+  % y no de otro reporte.
+  \item \textbf{Automaticé un reporte} de ~500 filas con Python y pandas, con 3\% de error.
+  \item Documenté el proceso en Google Apps Script.
+\end{itemize}
+
+% ADAPTAR: reordena según qué pese más para la vacante.
+\cvsection{Proyectos Destacados}
+
+\cventry{Pipeline de Calidad}{\small Python, pandas, pytest \ \href{https://ejemplo.com}{\raisebox{-0.05\height}\faGithub}}
+\begin{itemize}
+  \item Diseñé un pipeline ETL con validación fail-fast. % PENDIENTE: revisar el verbo
+\end{itemize}
+
+% OPCIONAL: borra esta entrada si el nicho es solo datos.
+\cventry{App de Eventos}{\small Java 17, Spring Boot, MySQL}
+\begin{itemize}
+  \item API REST con autenticación por roles.
+\end{itemize}
+
+\cvsection{Habilidades Técnicas}
+\skillrow{Lenguajes:}{Python, SQL, Java}
+\skillrow{BI / Analítica:}{Power BI (en formación)}
+
+\end{document}

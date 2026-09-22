@@ -368,6 +368,21 @@ def load_vocabulary(path: Path) -> Vocabulary:
     return vocab
 
 
+def load_implications(path: Path, vocab: Vocabulary) -> dict[str, list[str]]:
+    """Lee la sección opcional `implies`. Toda clave/valor debe existir en el vocabulario."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    implies = data.get("implies") or {}
+    if not isinstance(implies, dict):
+        raise ValueError(f"{path}: 'implies' debe ser un mapa")
+    for key, targets in implies.items():
+        if not isinstance(targets, list) or not targets:
+            raise ValueError(f"{path}: implies.{key} debe ser una lista no vacía")
+        unknown = [k for k in [key, *targets] if k not in vocab]
+        if unknown:
+            raise ValueError(f"{path}: implies.{key} usa términos fuera del vocabulario: {unknown}")
+    return {str(k): [str(x) for x in v] for k, v in implies.items()}
+
+
 def compile_vocabulary(vocab: Vocabulary) -> dict[str, Pattern[str]]:
     return {
         canonical: re.compile(

@@ -5,6 +5,7 @@ Uso:
   python -m src.cli --fetch      # trae 1 página fresca de Arbeitnow y la procesa
   python -m src.cli --semantic   # activa embeddings (requiere el extra [semantic])
   python -m src.cli --top 15     # cuántas vacantes explicar en consola
+  python -m src.cli --suggest 3  # + sugerencias de CV para las 3 mejores
 """
 
 import argparse
@@ -13,9 +14,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from src.cv.parser import parse_cv
+from src.cv.suggest import Suggester, profile_consistency
 from src.etl.extract import fetch_arbeitnow, records_from_snapshot
 from src.etl.match import Embedder, Matcher, load_profile
-from src.etl.transform import load_vocabulary, transform
+from src.etl.transform import compile_vocabulary, load_implications, load_vocabulary, transform
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -29,6 +32,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fetch", action="store_true", help="traer datos frescos de la API")
     parser.add_argument("--semantic", action="store_true", help="activar embeddings")
     parser.add_argument("--top", type=int, default=10, help="vacantes a explicar")
+    parser.add_argument(
+        "--suggest", type=int, default=0, metavar="N",
+        help="sugerencias de adaptación del CV para las N mejores vacantes",
+    )  # fmt: skip
     args = parser.parse_args(argv)
 
     if args.fetch:
@@ -87,6 +94,23 @@ def main(argv: list[str] | None = None) -> int:
     for r in results[: args.top]:
         print()
         print(r.explain())
+
+    if args.suggest:
+        cv_path = Path(profile.cv_path).expanduser()
+        if not cv_path.exists():
+            print(f"\nNo encuentro el CV en {cv_path} (cv_path en skills_profile.yaml)",
+                  file=sys.stderr)  # fmt: skip
+            return 1
+        cv = parse_cv(cv_path, compile_vocabulary(vocab))
+        audit = profile_consistency(cv, profile)
+        if any(audit.values()):
+            print(f"\n⚠ perfil y CV desalineados: {audit}", file=sys.stderr)
+        suggester = Suggester(cv, profile, embedder, load_implications(VOCAB_PATH, vocab))
+        by_id = {v.id: v for v in vacantes}
+        print(f"\n=== Sugerencias de CV ({cv_path.name}) ===")
+        for r in results[: args.suggest]:
+            print()
+            print(suggester.suggest(by_id[r.vacante_id]).render())
 
     written = (out, report_path, matches_path)
     print("\nEscrito: " + ", ".join(str(p.relative_to(ROOT)) for p in written))

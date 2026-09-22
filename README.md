@@ -3,7 +3,7 @@
 Pipeline de datos que busca pasantías/empleos, las normaliza y calcula un score de
 compatibilidad **explicable** contra mi perfil de habilidades y `Base_CV.tex`.
 
-> Estado: **Fase 3 — Match** cerrada (perfil como datos + score explicable + veredicto de encaje).
+> Estado: **Fase 4** cerrada (parser de `Base CV.tex` + motor de sugerencias por vacante).
 
 ## Setup
 
@@ -16,6 +16,7 @@ pytest && ruff check . && mypy src tests
 python -m src.cli            # reprocesa el snapshot más reciente de data/raw/
 python -m src.cli --fetch    # trae 1 página fresca de Arbeitnow
 python -m src.cli --semantic # + embeddings (requiere pip install -e ".[semantic]")
+python -m src.cli --suggest 3 # + sugerencias de CV para las 3 mejores
 ```
 
 ## Decisiones
@@ -105,6 +106,36 @@ Resultado sobre el snapshot real (solo skills, sin embeddings): **3 aptas, 83 a
 revisar, 163 no aptas**. Bloqueos: senior 84, descripción en alemán 34 / francés 26,
 híbrido fuera de Quito 27, presencial fuera de Quito 19. 142 de 249 vacantes no
 mencionan ninguna skill del vocabulario (score n/d, no 0).
+
+## CV: parser y sugerencias (Fase 4)
+
+`src/cv/parser.py` lee `Base CV.tex` (ruta en `cv_path` del perfil; el CV no está en
+el repo) y devuelve secciones, entradas, bullets y filas de habilidades. Entiende las
+marcas de trabajo del propio CV y las asocia a su elemento: `% ADAPTAR`, `% CONFIRMAR`,
+`% AGREGAR`, `% PENDIENTE`, `% OPCIONAL` (en línea propia van al elemento siguiente; al
+final de una línea, a esa; la leyenda del encabezado se ignora). Un `.tex` sin
+`\begin{document}`, sin secciones o sin bullets lanza ValueError en vez de devolver algo
+vacío.
+
+`src/cv/suggest.py` cruza los gaps de la vacante contra el CV. **Nunca sugiere agregar
+una skill que el CV no respalde** — la misma regla que el CV se pone a sí mismo:
+
+| Situación | Sugerencia |
+|---|---|
+| Skill pedida, ya nombrada en un bullet | destacar ese bullet (ordenado por # de skills que cubre) |
+| Skill pedida, en el stack de una entrada pero no en sus bullets | nombrarla en un bullet de esa entrada |
+| Skill pedida, implícita en otra (`implies` del vocabulario: MySQL → SQL) | nombrarla, diciendo de dónde sale |
+| Skill pedida, solo en Habilidades | respaldarla en un bullet si es real; si el CV la marca "en formación", no presentarla como dominada |
+| Skill pedida, ausente del CV | brecha: se lista, no se inventa |
+
+Además reordena las secciones marcadas `% ADAPTAR` según la vacante, señala entradas
+`% OPCIONAL` que no aportan, y avisa cuando el Perfil contradice la vacante (dice
+"pasantía híbrida en Quito" y la vacante es remota). Los bullets sugeridos que tengan
+`% CONFIRMAR`/`% PENDIENTE` salen con esa advertencia: no se manda un dato que el CV
+marca como no verificado.
+
+`profile_consistency()` audita que `skills_profile.yaml` siga derivado del CV. Sobre el
+CV real: 0 skills de más y 0 de menos.
 
 ## Limitaciones conocidas
 
