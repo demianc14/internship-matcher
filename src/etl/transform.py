@@ -474,12 +474,18 @@ def normalize(
     if location is None and cities:  # sin campo de ubicación: intentar deducirla del texto
         location, location_evidence = infer_location(f"{raw.title}. {description}", cities)
         location_source = "description" if location else None
+    # El título y la empresa pasan por la misma limpieza que la descripción: llegan
+    # con entidades HTML ("Machine Operator &amp; Labourers") y con el mojibake de
+    # RemoteOK ("Oracle Fusion Cloud Lead â€”"). Si la limpieza los vaciara, se
+    # conserva el original en vez de quedarse sin título.
+    title = clean_description(raw.title) or raw.title.strip()
+    company = clean_description(raw.company or "") or None
     return Vacante(
         id=f"{raw.source}:{raw.source_id}",
         source=raw.source,
         source_id=raw.source_id,
-        title=raw.title.strip(),
-        company=(raw.company or "").strip() or None,
+        title=title,
+        company=company,
         url=raw.url,
         description_text=description,
         location=location,
@@ -489,9 +495,9 @@ def normalize(
         modality=classify_modality(raw, description),
         seniority=classify_seniority(raw),
         schedule=classify_schedule(raw),
-        hours=extract_hours(f"{raw.title}. {description}"),
+        hours=extract_hours(f"{title}. {description}"),
         language=detect_language(description),
-        keywords=extract_keywords(f"{raw.title}. {description}", compiled_vocab),
+        keywords=extract_keywords(f"{title}. {description}", compiled_vocab),
         posted_at=raw.posted_at,
         fetched_at=raw.fetched_at,
     )

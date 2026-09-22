@@ -254,6 +254,9 @@ en la máquina.
   genérico. El título sí separa (0.522 vs. 0.28). La calibración 0.30–0.60 sale de la
   distribución real (p50 0.33, p90 0.49) con `paraphrase-multilingual-MiniLM-L12-v2`;
   hay que rehacerla si cambia el modelo.
+- **Un título llega truncado desde RemoteOK** (`…Attributeâ`, un "™" cortado a medias
+  en el propio feed). No se repara: completar bytes que la fuente no mandó sería
+  inventar. Es 1 de 348.
 - **Las keywords de idioma son ruidosas:** "German" matchea tanto "fluent German" como
   "a German company". Sirven como aviso, no como requisito confirmado.
 - **No se separa la sección de requisitos** de la descripción: las keywords salen del

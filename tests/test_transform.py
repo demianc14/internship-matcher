@@ -271,3 +271,20 @@ def test_fix_mojibake_repairs_remoteok_text() -> None:
     assert fix_mojibake(broken) == "Hi! I’m Hannah"
     assert fix_mojibake("pasantía híbrida") == "pasantía híbrida"  # texto sano intacto
     assert "’" in clean_description(f"<p>{broken}</p>")
+
+
+def test_title_and_company_get_the_same_cleaning_as_the_description() -> None:
+    """Llegaban sin limpiar: entidades HTML (Arbeitnow) y mojibake (RemoteOK)."""
+    v = normalize(
+        raw(title="Machine Operator &amp; Labourers", company="R&amp;D Labs"), COMPILED
+    )
+    assert v.title == "Machine Operator & Labourers"
+    assert v.company == "R&D Labs"
+
+    roto = b"Oracle Lead \xc3\xa2\xc2\x80\xc2\x94 Logistics".decode()
+    assert normalize(raw(title=roto), COMPILED).title == "Oracle Lead — Logistics"
+
+
+def test_cleaning_never_leaves_a_vacancy_without_title() -> None:
+    v = normalize(raw(title="<p></p>", company="<span></span>"), COMPILED)
+    assert v.title == "<p></p>" and v.company is None
