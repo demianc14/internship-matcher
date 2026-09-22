@@ -65,3 +65,61 @@ class FetchResult(BaseModel):
     @property
     def ok(self) -> bool:
         return self.source_error is None
+
+
+# --- Transform (Fase 2) ----------------------------------------------------------
+
+Modality = Literal["remote", "hybrid", "onsite"]
+Seniority = Literal["intern", "student_job", "entry", "mid", "senior"]
+Schedule = Literal["full_time", "part_time"]
+SignalOrigin = Literal["structured", "location", "title", "employment", "description"]
+Unresolved = Literal["no_signal", "conflict", "weak_signal", "unknown_value"]
+
+
+class Resolved(BaseModel):
+    """Campo clasificado con su evidencia. `value=None` ⇒ `unresolved` dice por qué.
+
+    Nunca hay default silencioso: o hay un valor con evidencia citada, o queda
+    explícitamente pendiente.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value: str | None = None
+    origin: SignalOrigin | None = None
+    evidence: str | None = None
+    unresolved: Unresolved | None = None
+
+
+class Hours(BaseModel):
+    """Carga horaria explícita. No se convierte semana↔día (sería asumir 5 días)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    min: float | None = None
+    max: float | None = None
+    period: Literal["day", "week"] | None = None
+    evidence: str | None = None
+    unresolved: Unresolved | None = None
+
+
+class Vacante(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(description="'<source>:<source_id>'")
+    source: Source
+    source_id: str
+    title: str
+    company: str | None
+    url: HttpUrl
+    description_text: str
+    location: str | None
+    is_quito: bool | None
+    modality: Resolved
+    seniority: Resolved
+    schedule: Resolved
+    hours: Hours
+    language: str | None = Field(description="Idioma dominante de la descripción o None")
+    keywords: list[str]
+    posted_at: datetime | None
+    fetched_at: datetime

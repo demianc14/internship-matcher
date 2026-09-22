@@ -150,3 +150,22 @@ def save_snapshot(source: str, pages: list[Any], directory: Path, fetched_at: da
         encoding="utf-8",
     )
     return path
+
+
+_PARSERS = {"arbeitnow": parse_arbeitnow}
+
+
+def records_from_snapshot(path: Path) -> tuple[list[RawVacante], list[RecordError]]:
+    """Re-parsea un snapshot de data/raw/ sin volver a llamar a la API."""
+    snap = json.loads(path.read_text(encoding="utf-8"))
+    parser = _PARSERS.get(snap.get("source"))
+    if parser is None:
+        raise ValueError(f"{path}: fuente desconocida {snap.get('source')!r}")
+    fetched_at = datetime.fromisoformat(snap["fetched_at"])
+    records: list[RawVacante] = []
+    rejected: list[RecordError] = []
+    for page in snap["pages"]:
+        page_records, page_rejected = parser(page, fetched_at)
+        records += page_records
+        rejected += page_rejected
+    return records, rejected

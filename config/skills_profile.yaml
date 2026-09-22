@@ -1,0 +1,150 @@
+# Fuente de verdad de mi perfil. Derivado de "Base CV.tex" (versión 2026-09-21).
+#
+# Regla (la misma del CV): solo habilidades respaldadas por el CV. No hay niveles
+# autoevaluados; el tier sale de DÓNDE aparece la habilidad en el CV:
+#   demostrado   = aparece en un bullet de experiencia o proyecto
+#   listado      = solo en "Habilidades Técnicas" o respaldado por certificación
+#   en_formacion = el propio CV lo marca como "en formación"
+# Las claves de `skills` deben existir en config/keyword_vocabulary.yaml
+# (el loader falla si no, para que ninguna skill quede sin poder matchear).
+
+cv_path: "~/Documents/Documentos Demi/Base CV.tex"
+
+tier_weights:
+  demostrado: 1.0
+  listado: 0.6
+  en_formacion: 0.3
+
+skills:
+  python:
+    tier: demostrado
+    evidence: "Pipelines ETL en Python: Metalúrgica Andina QC y World Cup Predictor; backend Flask"
+  pandas:
+    tier: demostrado
+    evidence: "Metalúrgica Andina QC: limpieza y auditoría de datos de producción con pandas"
+  pydantic:
+    tier: demostrado
+    evidence: "Validación fail-fast con Pydantic en World Cup Predictor y Metalúrgica Andina"
+  etl:
+    tier: demostrado
+    evidence: "Diseñé pipelines ETL con validación fail-fast y degradación elegante ante fuentes externas"
+  data analysis:
+    tier: demostrado
+    evidence: "Minor en Análisis de Datos; análisis de datos para proyectos de impacto social en Galápagos"
+  statistics:
+    tier: demostrado
+    evidence: "Motor Maher + Dixon-Coles y 10,000 simulaciones Monte Carlo en World Cup Predictor"
+  llm:
+    tier: demostrado
+    evidence: "Integré un narrador opcional con Claude (LLM) en World Cup Predictor"
+  sql:
+    tier: demostrado
+    evidence: "Esquema relacional MySQL con procedimientos almacenados, triggers y 10 vistas de reportería"
+  mysql:
+    tier: demostrado
+    evidence: "Sistema de Gestión de Eventos Musicales: base MySQL con diseño relacional completo"
+  flask:
+    tier: demostrado
+    evidence: "Backend modular en Flask con rutas API REST y autenticación basada en roles"
+  rest api:
+    tier: demostrado
+    evidence: "APIs REST en Flask (Eventos Musicales) y Spring Boot (Tennis Session Tracker)"
+  bootstrap:
+    tier: demostrado
+    evidence: "Frontend con Bootstrap en el Sistema de Gestión de Eventos Musicales"
+  java:
+    tier: demostrado
+    evidence: "Tennis Session Tracker: API REST en Java 17 con Spring Boot, JPA y JUnit"
+  spring boot:
+    tier: demostrado
+    evidence: "Tennis Session Tracker: Spring Boot con Bean Validation y manejo centralizado de errores"
+  junit:
+    tier: demostrado
+    evidence: "Tennis Session Tracker: pruebas de controlador y repositorio con JUnit"
+  javascript:
+    tier: demostrado
+    evidence: "Algoritmos en JavaScript para las verificaciones del flujo de admisiones (Galápagos Science Center)"
+  pytest:
+    tier: demostrado
+    evidence: "World Cup Predictor cubierto por 14 tests automatizados con pytest"
+  mypy:
+    tier: demostrado
+    evidence: "Metalúrgica Andina QC con tipado verificado por mypy"
+  git:
+    tier: demostrado
+    evidence: "Proyectos publicados y versionados en GitHub (demianc14)"
+  power automate:
+    tier: demostrado
+    evidence: "Flujo de validación automática en Power Automate: +20 validaciones, +85 campos, +400 registros"
+  google apps script:
+    tier: demostrado
+    evidence: "Formulario de agendamiento en Google Apps Script con branching y control de cupos en tiempo real"
+  excel:
+    tier: demostrado
+    evidence: "Conciliación de ~400 estudiantes en Sheets/Excel y modelado de capacidad operativa en Excel"
+  c++:
+    tier: listado
+    evidence: "Listado en Lenguajes del CV"
+    # PENDIENTE: el propio CV tiene un comentario "AGREGAR solo si puedes explicar
+    # un caso de uso real: C++", pero C++ ya aparece en la fila de Lenguajes.
+  html:
+    tier: listado
+    evidence: "Web / APIs: HTML, CSS, Bootstrap, APIs REST"
+  css:
+    tier: listado
+    evidence: "Web / APIs: HTML, CSS, Bootstrap, APIs REST"
+  jinja2:
+    tier: listado
+    evidence: "Ecosistema Py: Flask, pandas, Pydantic, Jinja2"
+  aws:
+    tier: listado
+    evidence: "Certificación AWS Academy Microservices and CI/CD Pipeline Builder (2026)"
+  ci/cd:
+    tier: listado
+    evidence: "Certificación AWS Academy (Microservicios y CI/CD); aún sin CI en los repos"
+  power bi:
+    tier: en_formacion
+    evidence: "BI / Analítica: Power BI (en formación)"
+
+# Idiomas hablados. Nivel CEFR; "nativo" cuenta como C2.
+languages:
+  es: nativo
+  en: B2
+  it: A1  # "Italiano (básico)" en el CV
+# Nivel mínimo para considerar que puedo trabajar en ese idioma.
+min_working_level: B2
+
+# Resumen para el componente semántico. Copiado del "Perfil" del CV.
+# Temporal: en la Fase 4 los passages salen de los bullets parseados del CV.
+summary: >
+  Estudiante de Ingeniería en Ciencias de la Computación con Minor en Análisis de
+  Datos, enfocado en automatización de procesos, pipelines de datos e IA aplicada.
+  Experiencia real en Power Automate y Google Apps Script, y proyectos en Python con
+  validación fail-fast, pruebas automatizadas y simulación estadística.
+
+# Reglas de encaje (no afectan el score, dan el veredicto apta / revisar / no_apta).
+fit:
+  seniority:
+    ok: [intern, entry]
+    # Werkstudent suele exigir matrícula en una universidad alemana; mid = revisar.
+    review: [student_job, mid]
+    blocker: [senior]
+  home_city: quito
+  # Carga horaria buscada: 4–6 h/día. Semanal equivalente solo para comparar
+  # vacantes que la dan por semana (documentado: asume 5 días).
+  hours_per_day: [4, 6]
+  hours_per_week: [20, 30]
+  full_time: review
+
+# Pesos del score (0–100). Si un componente no está disponible, se renormaliza
+# sobre los que sí, y la explicación lo dice.
+score_weights:
+  skills: 0.6
+  semantic: 0.4
+# Denominador mínimo de la cobertura de skills: una vacante que pide 1 skill
+# que tengo no demuestra 100% de encaje. cobertura = Σ pesos / max(# pedidas, esto).
+min_required_skills: 3
+# Calibración provisional del coseno → [0, 1]; ajustar con datos reales.
+semantic_calibration:
+  low: 0.20
+  high: 0.70

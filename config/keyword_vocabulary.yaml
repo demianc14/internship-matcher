@@ -1,0 +1,96 @@
+# Vocabulario GENÉRICO de habilidades que transform busca en cada vacante.
+#
+# No es mi perfil (ese será config/skills_profile.yaml en la Fase 3): esto solo
+# define qué términos se reconocen como requisito/keyword, sin importar si los
+# tengo o no. canónico: [alias...]. El match ignora mayúsculas y exige límites
+# de palabra, así que "java" no matchea dentro de "javascript".
+#
+# Excluidos a propósito por ambiguos en texto libre: "R" (letra suelta),
+# "Go" (verbo), "Excel" como verbo ("excel at") → solo "microsoft excel"/"excel skills".
+
+keywords:
+  # Lenguajes
+  python: [python]
+  sql: [sql]
+  java: [java]
+  javascript: [javascript, js]
+  typescript: [typescript]
+  c++: [c++]
+  c#: [c#]
+  golang: [golang]
+  scala: [scala]
+  matlab: [matlab]
+  bash: [bash, shell scripting]
+
+  # Datos / ML
+  pandas: [pandas]
+  numpy: [numpy]
+  scikit-learn: [scikit-learn, sklearn]
+  pytorch: [pytorch]
+  tensorflow: [tensorflow]
+  machine learning: [machine learning, ml engineer]
+  deep learning: [deep learning]
+  nlp: [nlp, natural language processing]
+  statistics: [statistics, statistical, statistik]
+  data analysis: [data analysis, data analytics, datenanalyse]
+  etl: [etl, elt, data pipeline, data pipelines]
+  spark: [spark, pyspark]
+  airflow: [airflow]
+  dbt: [dbt]
+  llm: [llm, llms, large language model, large language models]
+
+  # BI / ofimática
+  power bi: [power bi, powerbi]
+  tableau: [tableau]
+  looker: [looker]
+  excel: [microsoft excel, ms excel, excel skills, advanced excel]
+
+  # Calidad de código
+  pydantic: [pydantic]
+  pytest: [pytest]
+  mypy: [mypy]
+  junit: [junit]
+
+  # Automatización
+  power automate: [power automate, microsoft power automate]
+  google apps script: [google apps script, apps script]
+
+  # Backend / infra
+  fastapi: [fastapi]
+  spring boot: [spring boot]  # "spring" solo sería ambiguo (estación)
+  jinja2: [jinja2, jinja]
+  django: [django]
+  flask: [flask]
+  rest api: [rest api, rest apis, restful]
+  postgresql: [postgresql, postgres]
+  mysql: [mysql]
+  mongodb: [mongodb]
+  docker: [docker]
+  kubernetes: [kubernetes, k8s]
+  aws: [aws, amazon web services]
+  gcp: [gcp, google cloud]
+  azure: [azure]
+  git: [git, github, gitlab]
+  linux: [linux]
+  ci/cd: [ci/cd, continuous integration]
+
+  # Frontend
+  html: [html, html5]
+  css: [css, css3]
+  bootstrap: [bootstrap]
+  react: [react, react.js, reactjs]
+  node.js: [node.js, nodejs]
+
+  # Negocio / herramientas
+  salesforce: [salesforce]
+  sap: [sap]
+  hubspot: [hubspot]
+  jira: [jira]
+
+  # Idiomas mencionados: el match los trata aparte, no cuentan como skills.
+  # Ruido posible: "German company" también matchea.
+  english: [english, englisch, inglés]
+  german: [german, deutsch, deutschkenntnisse, alemán]
+  spanish: [spanish, spanisch, español]
+  french: [french, französisch, francés]
+  italian: [italian, italienisch, italiano]

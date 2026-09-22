@@ -178,3 +178,14 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
   antes del primer fetcher. Sin clasificar modalidad/ubicación.
 - **2026-09-21 — Hallazgo:** Arbeitnow página 1 = 3/250 remotas, mayoría Alemania.
   Su aporte para "pasantía remota" es bajo; RemoteOK/CSV manual pesan más.
+- **2026-09-21 — Fase 2:** modalidad por reglas explícitas con evidencia y `None` +
+  motivo si no hay confianza; dedup por (título, empresa, ubicación), misma vacante en
+  otra ciudad se conserva y se reporta. Vocabulario genérico de keywords en
+  `config/keyword_vocabulary.yaml` (distinto de `skills_profile.yaml`).
+- **2026-09-22 — CV:** la fuente es `~/Documents/Documentos Demi/Base CV.tex` (con
+  espacio). `cv.tex` en la misma carpeta está desactualizado; no usarlo.
+- **2026-09-22 — Fase 3:** modalidad desconocida no descarta (solo avisa). Score
+  (skills + semántico opcional) separado del veredicto de encaje. Tiers del perfil
+  derivados de dónde aparece la skill en el CV, no autoevaluados.
+- **2026-09-22 — Ranking:** no_apta al final; entre apta/revisar ordena el score y el
+  veredicto desempata. C++ se mantiene como `listado`.
