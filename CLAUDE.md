@@ -201,3 +201,6 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
 - **2026-09-22 — Fase 6:** sin FastAPI (el CLI cubre el flujo; `src/api/` eliminado).
   Adzuna descartada: su API cubre 19 países y Ecuador no está. Tests de integración
   con las tres fuentes; la fuente manual puede correr sola, sin snapshots de API.
+- **2026-09-22 — Frontend:** reporte HTML autocontenido (`web/template.html` +
+  `src/report.py`), datos incrustados porque `file://` no puede hacer `fetch` de los
+  .jsonl vecinos. Sin servidor, sin dependencias externas.

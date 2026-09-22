@@ -9,7 +9,8 @@ testeables y un reporte de calidad cuantificado — mismo espíritu que
 [world-cup-predictor](https://github.com/demianc14/WC_predictor) y
 [MetalurgicaAndina_QC](https://github.com/demianc14/MetalurgicaAndina_QC).
 
-> Estado: fases 0–6 cerradas. 163 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
+> Estado: fases 0–6 cerradas, más un reporte HTML para revisar los resultados.
+> 171 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
 
 ## Qué produce
 
@@ -33,6 +34,22 @@ Nombrar explícitamente (la tienes, pero ningún bullet la dice):
 Brechas reales (no están en tu CV; no agregar sin respaldo):
   looker, tableau
 ```
+
+## Reporte HTML
+
+Cada corrida escribe `data/processed/reporte.html`: **un archivo autocontenido** que se
+abre con doble clic. Filtra por veredicto, fuente, "solo Quito", score mínimo y texto;
+cada vacante despliega su desglose (skills con tier y evidencia del CV, frases
+similares, bloqueos y avisos) junto a las sugerencias de CV.
+
+Los datos van **incrustados en el HTML**, no se leen con `fetch`: una página abierta
+desde `file://` no puede leer archivos vecinos porque el navegador lo bloquea. Así
+funciona sin servidor y sin conexión. La plantilla vive aparte en `web/template.html`
+(HTML, CSS y JS planos, sin dependencias ni CDN) y `src/report.py` solo inyecta el
+JSON, escapando `</` para que una descripción con `</script>` no rompa la página.
+
+Se descartó un servidor local: el CLI ya corre el pipeline, y lo que faltaba era poder
+**leer** 348 resultados sin scrollear la terminal.
 
 ## Quickstart
 
@@ -60,7 +77,9 @@ src/etl/match.py       score explicable + veredicto de encaje contra el perfil
 src/etl/embeddings.py  adaptador opcional a sentence-transformers
 src/cv/parser.py       Base CV.tex → secciones, entradas, bullets y sus marcas
 src/cv/suggest.py      qué bullets activar / qué nombrar / qué falta, por vacante
+src/report.py          arma el payload e inyecta los datos en la plantilla HTML
 src/cli.py             corre todo y escribe data/processed/
+web/template.html      plantilla del reporte (sin dependencias externas)
 config/                perfil, vocabulario y ciudades: datos, no código
 ```
 
@@ -202,8 +221,8 @@ como no verificado. `profile_consistency()` audita que el perfil siga derivado d
 ## Calidad
 
 ```
-163 tests · 96 % de cobertura · ruff y mypy limpios
-transform 97 % · match 98 % · cv/parser 97 % · cv/suggest 95 % · manual 100 % · cli 89 %
+171 tests · 96 % de cobertura · ruff y mypy limpios
+transform 97 % · match 98 % · cv/parser 97 % · cv/suggest 95 % · manual 100 % · report 100 %
 ```
 
 Ningún test llama a la red: las fuentes se prueban con fixtures recortados de
@@ -248,7 +267,8 @@ en la máquina.
 - **Fuente para Quito: archivos manuales, no CSV** ni scraping de bolsas locales.
 - **Adzuna descartada** tras verificar que su API no cubre Ecuador.
 - **Sin FastAPI:** el CLI cubre el flujo completo y no hay otro consumidor; agregar
-  endpoints habría sido superficie sin uso.
+  endpoints habría sido superficie sin uso. La interfaz es un HTML autocontenido que
+  se abre con doble clic, no una app servida.
 - **Score y encaje separados**, en vez de un único número que mezcle "sé hacer esto"
   con "puedo tomar este trabajo".
 - **Modalidad desconocida no descarta:** con 43 % de vacantes sin señal, descartarlas

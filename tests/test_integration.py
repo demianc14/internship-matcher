@@ -47,6 +47,15 @@ Pasantía de 4 horas al día.
 """
 
 
+def QUITO_RECORDS() -> list[RawVacante]:
+    """Solo la vacante manual de Quito, para tests que no necesitan las APIs."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "pasante-datos-acme.md").write_text(QUITO, encoding="utf-8")
+        return load_manual(Path(tmp), now=NOW).records
+
+
 @pytest.fixture
 def records(tmp_path: Path) -> tuple[list[RawVacante], list[Any]]:
     """Las tres fuentes juntas, como en una corrida real."""
@@ -218,3 +227,21 @@ def test_cli_suggest_path_uses_the_cv_from_the_profile(
     out = capsys.readouterr().out
     assert "=== Sugerencias de CV (cv_sample.tex) ===" in out
     assert "Pasante de Datos" in out and "Destacar estos bullets" in out
+
+
+def test_cli_writes_a_self_contained_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manual_dir, processed = tmp_path / "manual", tmp_path / "processed"
+    manual_dir.mkdir()
+    (manual_dir / "pasante-datos-acme.md").write_text(QUITO, encoding="utf-8")
+    (tmp_path / "raw").mkdir()
+    monkeypatch.setattr(cli, "RAW_DIR", tmp_path / "raw")
+    monkeypatch.setattr(cli, "PROCESSED_DIR", processed)
+    monkeypatch.setattr(cli, "MANUAL_DIR", manual_dir)
+
+    assert cli.main(["--top", "0"]) == 0
+
+    html = (processed / "reporte.html").read_text(encoding="utf-8")
+    assert "Pasante de Datos" in html and "Acme Ecuador" in html
+    assert "/*__DATOS__*/" not in html  # los datos quedaron incrustados

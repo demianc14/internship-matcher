@@ -8,6 +8,9 @@ Uso:
   python -m src.cli --suggest 3  # + sugerencias de CV para las 3 mejores
   python -m src.cli --nueva pasante-datos-acme   # plantilla de vacante manual
 
+Cada corrida escribe data/processed/reporte.html: un archivo autocontenido que se
+abre con doble clic (los datos van incrustados; file:// no puede leer los .jsonl).
+
 Las vacantes de data/manual/*.md se cargan siempre: son la fuente para Quito.
 """
 
@@ -29,6 +32,7 @@ from src.etl.transform import (
     load_vocabulary,
     transform,
 )
+from src.report import build_payload, write_report
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -36,6 +40,7 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 VOCAB_PATH = ROOT / "config" / "keyword_vocabulary.yaml"
 PROFILE_PATH = ROOT / "config" / "skills_profile.yaml"
 CITIES_PATH = ROOT / "config" / "locations.yaml"
+TEMPLATE_PATH = ROOT / "web" / "template.html"
 MANUAL_DIR = ROOT / "data" / "manual"
 
 
@@ -151,6 +156,22 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(r.explain())
 
+    # Sugerencias para el reporte: todas las viables (apta/revisar). Sin embeddings,
+    # que aquí solo aportarían lentitud: lo que se muestra son skills y bullets.
+    suggestions = {}
+    if cv is not None:
+        suggester = Suggester(cv, profile, implications=load_implications(VOCAB_PATH, vocab))
+        by_id = {v.id: v for v in vacantes}
+        for r in results:
+            if r.fit.verdict != "no_apta":
+                suggestions[r.vacante_id] = suggester.suggest(by_id[r.vacante_id])
+
+    report_html = write_report(
+        TEMPLATE_PATH,
+        PROCESSED_DIR / "reporte.html",
+        build_payload(vacantes, results, report, suggestions),
+    )
+
     if args.suggest:
         if cv is None:
             print(f"\nNo encuentro el CV en {cv_path} (cv_path en skills_profile.yaml)",
@@ -159,14 +180,12 @@ def main(argv: list[str] | None = None) -> int:
         audit = profile_consistency(cv, profile)
         if any(audit.values()):
             print(f"\n⚠ perfil y CV desalineados: {audit}", file=sys.stderr)
-        suggester = Suggester(cv, profile, embedder, load_implications(VOCAB_PATH, vocab))
-        by_id = {v.id: v for v in vacantes}
         print(f"\n=== Sugerencias de CV ({cv_path.name}) ===")
         for r in results[: args.suggest]:
             print()
-            print(suggester.suggest(by_id[r.vacante_id]).render())
+            print(suggestions[r.vacante_id].render())
 
-    written = (out, report_path, matches_path)
+    written = (out, report_path, matches_path, report_html)
     print("\nEscrito: " + ", ".join(rel(p) for p in written))
     return 0
 
