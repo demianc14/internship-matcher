@@ -22,6 +22,7 @@ from re import Pattern
 import yaml
 
 from src.etl.schema import (
+    Experience,
     Hours,
     RawVacante,
     RecordError,
@@ -379,6 +380,45 @@ def extract_hours(text: str) -> Hours:
     return Hours(min=lo, max=hi, period=period, evidence=evidence)  # type: ignore[arg-type]
 
 
+# --- Años de experiencia ---------------------------------------------------------
+
+_EXPERIENCE = re.compile(
+    r"\b(\d{1,2})\s*(?:\+|plus)?\s*(?:-|–|to|a|bis|à)?\s*(?:\d{1,2})?\s*\+?\s*"
+    r"(?:years?|yrs?|jahre|años|anos|ans)\b[^.;!?]{0,60}?"
+    r"(?:experience|experien[cz]ia|erfahrung|expérience|berufserfahrung)",
+    re.IGNORECASE,
+)
+# "With more than 40 years of experience" habla de la trayectoria de la empresa, no
+# de quien postula. La guardia es ESTRECHA a propósito: una versión amplia (cualquier
+# "we/our/company" cerca) descartaba requisitos reales como
+# "What We're Looking For: 2+ years of experience".
+_EMPRESA = re.compile(
+    r"(?:with (?:more than|over)|con más de|mit über|seit über)\s*$", re.IGNORECASE
+)
+_MAX_YEARS = 15
+
+
+def extract_experience(text: str) -> Experience:
+    """Años de experiencia pedidos.
+
+    Dos guardias, ambas medidas sobre datos reales: se ignora lo precedido por
+    "with more than …" (la empresa hablando de sí misma) y todo lo que pase de 15
+    años, que en el snapshot real era siempre eso mismo ("28+ years of fintech
+    experience", "With 30 years of experience")."""
+    found: list[tuple[float, str]] = []
+    for m in _EXPERIENCE.finditer(text):
+        antes = text[max(0, m.start() - 25) : m.start()]
+        if _EMPRESA.search(antes):
+            continue
+        years = float(m.group(1))
+        if 0 <= years <= _MAX_YEARS:
+            found.append((years, _snippet(text, m, 25)))
+    if not found:
+        return Experience(unresolved="no_signal")
+    years, evidence = min(found, key=lambda t: t[0])
+    return Experience(years=years, evidence=evidence)
+
+
 # --- Idioma ----------------------------------------------------------------------
 
 _STOPWORDS = {
@@ -496,6 +536,7 @@ def normalize(
         seniority=classify_seniority(raw),
         schedule=classify_schedule(raw),
         hours=extract_hours(f"{title}. {description}"),
+        experience=extract_experience(description),
         language=detect_language(description),
         keywords=extract_keywords(f"{title}. {description}", compiled_vocab),
         posted_at=raw.posted_at,
@@ -591,6 +632,10 @@ class TransformReport:
             "seniority": _field_counts(x.seniority for x in v),
             "schedule": _field_counts(x.schedule for x in v),
             "hours": _field_counts(x.hours for x in v),
+            "experience": Counter(
+                "sin resolver" if x.experience.years is None else f"{x.experience.years:g}+ años"
+                for x in v
+            ),
             "source": Counter(x.source for x in v),
             "language": Counter(x.language or "sin resolver" for x in v),
             "is_quito": Counter(

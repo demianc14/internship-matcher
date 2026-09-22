@@ -18,6 +18,7 @@ from src.etl.transform import (
     compile_vocabulary,
     dedup,
     detect_language,
+    extract_experience,
     extract_hours,
     extract_keywords,
     fix_mojibake,
@@ -288,3 +289,39 @@ def test_title_and_company_get_the_same_cleaning_as_the_description() -> None:
 def test_cleaning_never_leaves_a_vacancy_without_title() -> None:
     v = normalize(raw(title="<p></p>", company="<span></span>"), COMPILED)
     assert v.title == "<p></p>" and v.company is None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("What We're Looking For: 2+ years of experience in sales", 2.0),
+        ("You'll Need to Have 7+ years of experience", 7.0),
+        ("Buscamos 5+ años de experiencia en desarrollo", 5.0),
+        ("Mindestens 3 Jahre Berufserfahrung", 3.0),
+        ("We ask for 0–1 year of experience", 0.0),
+        # varios requisitos: se guarda el menor, no el más alto
+        ("3+ years of experience in Python, 8 years of experience leading teams", 3.0),
+    ],
+)
+def test_extract_experience(text: str, expected: float) -> None:
+    assert extract_experience(text).years == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "With more than 40 years of experience, our firm leads the market",
+        "The Libertex Group in Numbers: 28+ years of fintech experience",
+        "Con más de 30 años de experiencia en el mercado",
+        "Great team, no numbers here",
+    ],
+)
+def test_experience_ignores_company_history(text: str) -> None:
+    """Casos reales del snapshot: la empresa hablando de su propia trayectoria."""
+    assert extract_experience(text).years is None
+    assert extract_experience(text).unresolved == "no_signal"
+
+
+def test_experience_evidence_is_quoted() -> None:
+    e = extract_experience("Requirements: 4+ years of experience with data pipelines")
+    assert e.evidence and "4+ years of experience" in e.evidence

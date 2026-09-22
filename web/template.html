@@ -181,6 +181,7 @@ function detalle(v) {
     if (r.evidence) out.push(`<p class="evid">${nombre}: ${esc(r.evidence)}</p>`);
   }
   if (v.hours.evidence) out.push(`<p class="evid">horas: ${esc(v.hours.evidence)}</p>`);
+  if (v.experience.evidence) out.push(`<p class="evid">experiencia: ${esc(v.experience.evidence)}</p>`);
   if (v.location_source === "description") out.push(`<p class="evid">ubicación deducida del texto</p>`);
 
   const g = v.suggestion;
@@ -229,6 +230,7 @@ function tarjeta(v) {
       <span>${campo("modalidad", v.modality)}</span>
       <span>${campo("nivel", v.seniority)}</span>
       <span>${horas(v.hours)}</span>
+      ${v.experience.years !== null ? `<span>experiencia: <b>${v.experience.years}+ años</b></span>` : ""}
       ${v.language ? `<span>idioma: ${esc(v.language)}</span>` : ""}
       ${comps ? `<span>${esc(comps)}</span>` : ""}
     </div>

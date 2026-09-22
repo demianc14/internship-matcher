@@ -21,7 +21,7 @@ from src.etl.match import (
     score_skills,
     split_sentences,
 )
-from src.etl.schema import Hours, Resolved, Vacante
+from src.etl.schema import Experience, Hours, Resolved, Vacante
 from src.etl.transform import load_vocabulary
 
 ROOT = Path(__file__).parent.parent
@@ -62,6 +62,7 @@ def vac(**overrides: Any) -> Vacante:
         "seniority": Resolved(value="intern", origin="title", evidence="Data Intern"),
         "schedule": Resolved(unresolved="no_signal"),
         "hours": Hours(unresolved="no_signal"),
+        "experience": Experience(unresolved="no_signal"),
         "language": "en",
         "keywords": [],
         "posted_at": None,
@@ -260,3 +261,16 @@ def test_split_sentences_filters_fragments() -> None:
         "This sentence is definitely long enough to count as one.",
         "Another bullet that is long enough here",
     ]
+
+
+@pytest.mark.parametrize(
+    ("years", "verdict"),
+    [(None, "apta"), (0.0, "apta"), (1.0, "apta"), (2.0, "no_apta"), (7.0, "no_apta")],
+)
+def test_experience_above_what_i_can_show_blocks(years: float | None, verdict: str) -> None:
+    """Decisión estricta: pedir 2+ años bloquea (mi experiencia formal es de meses)."""
+    exp = Experience(unresolved="no_signal") if years is None else Experience(years=years)
+    fit = assess_fit(vac(experience=exp), PROFILE)
+    assert fit.verdict == verdict
+    if verdict == "no_apta":
+        assert any("años de experiencia" in b for b in fit.blockers)

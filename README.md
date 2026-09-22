@@ -10,7 +10,7 @@ testeables y un reporte de calidad cuantificado — mismo espíritu que
 [MetalurgicaAndina_QC](https://github.com/demianc14/MetalurgicaAndina_QC).
 
 > Estado: fases 0–6 cerradas, más un reporte HTML para revisar los resultados.
-> 171 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
+> 189 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
 
 ## Qué produce
 
@@ -142,6 +142,7 @@ Cada campo clasificado es un `Resolved` con **valor + origen + evidencia citada*
 | Seniority | título + `employment_raw` | Etiquetas distintas = conflicto, salvo `entry` + `intern`/`student_job` (nivel vs. tipo de puesto: gana el específico). |
 | Jornada | título + `employment_raw` | "Full or part time" = conflicto. No se infiere de la descripción: los beneficios mencionan "part-time options". |
 | Horas | título + descripción | Solo explícitas y plausibles (≤12 h/día, ≤60 h/semana). No se convierte semana↔día. |
+| Experiencia | descripción | Años pedidos ("2+ years of experience"). Se ignora la trayectoria de la empresa ("With more than 40 years…") y todo lo que pase de 15 años. Con varios requisitos se guarda el menor. |
 | Idioma | descripción | Stopwords en/de/es/fr; sin ganador claro ⇒ `None`. Umbral más bajo si no hay evidencia de otro idioma (los avisos locales son cortos). |
 | Keywords | título + descripción | `config/keyword_vocabulary.yaml`, con alias en es/en/de e implicaciones (MySQL ⇒ SQL). |
 
@@ -177,7 +178,8 @@ sedes; se lista como "posible duplicado".
   - *semántico* (opcional): similitud del **título** de la vacante con los bullets del
     CV. Si está apagado, los pesos se renormalizan y la explicación lo dice.
 - **Veredicto** `apta / revisar / no_apta` = restricciones prácticas, fuera del score:
-  seniority, modalidad+ubicación (híbrido/presencial fuera de Quito bloquea;
+  seniority, **años de experiencia pedidos** (más de 1 bloquea: mi experiencia formal
+  son 3 meses de pasantía), modalidad+ubicación (híbrido/presencial fuera de Quito bloquea;
   **modalidad desconocida nunca descarta**, solo avisa), idioma de la descripción vs.
   mis idiomas de trabajo (≥B2), jornada completa y horas fuera de 4–6 h/día.
 
@@ -221,7 +223,7 @@ como no verificado. `profile_consistency()` audita que el perfil siga derivado d
 ## Calidad
 
 ```
-171 tests · 96 % de cobertura · ruff y mypy limpios
+189 tests · 96 % de cobertura · ruff y mypy limpios
 transform 97 % · match 98 % · cv/parser 97 % · cv/suggest 95 % · manual 100 % · report 100 %
 ```
 

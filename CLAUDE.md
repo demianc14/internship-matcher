@@ -204,3 +204,7 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
 - **2026-09-22 — Frontend:** reporte HTML autocontenido (`web/template.html` +
   `src/report.py`), datos incrustados porque `file://` no puede hacer `fetch` de los
   .jsonl vecinos. Sin servidor, sin dependencias externas.
+- **2026-09-22 — Experiencia:** se extraen los años pedidos del texto y **más de 1
+  bloquea** (umbral estricto, `fit.max_years_experience` en el perfil). Sin esto, el
+  ranking ponía arriba vacantes de 5 y 7 años: el seniority del título no alcanza
+  (98 de 348 vacantes piden años y en 60 no había señal de nivel).

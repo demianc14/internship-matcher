@@ -52,6 +52,7 @@ def build_payload(
                 "seniority": v.seniority.model_dump(),
                 "schedule": v.schedule.model_dump(),
                 "hours": v.hours.model_dump(),
+                "experience": v.experience.model_dump(),
                 "keywords": v.keywords,
                 "score": r.score,
                 "score_components": r.score_components,

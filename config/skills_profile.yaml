@@ -135,6 +135,11 @@ fit:
   hours_per_day: [4, 6]
   hours_per_week: [20, 30]
   full_time: review
+  # Años de experiencia profesional acreditables: la pasantía en el Galápagos Science
+  # Center (3 meses). Una vacante que pida MÁS que esto se bloquea — decisión
+  # explícita del 2026-09-22: con 98 de 348 vacantes pidiendo años concretos, avisar
+  # no alcanzaba (una de 7 años quedaba 3.ª en el ranking).
+  max_years_experience: 1
 
 # Pesos del score (0–100). Si un componente no está disponible, se renormaliza
 # sobre los que sí, y la explicación lo dice.

@@ -103,6 +103,17 @@ class Hours(BaseModel):
     unresolved: Unresolved | None = None
 
 
+class Experience(BaseModel):
+    """Años de experiencia que pide la vacante. Si menciona varios requisitos se
+    guarda el MENOR: bloquear por el más alto castigaría de más."""
+
+    model_config = ConfigDict(frozen=True)
+
+    years: float | None = None
+    evidence: str | None = None
+    unresolved: Unresolved | None = None
+
+
 class Vacante(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -123,6 +134,7 @@ class Vacante(BaseModel):
     seniority: Resolved
     schedule: Resolved
     hours: Hours
+    experience: Experience = Field(default_factory=Experience)
     language: str | None = Field(description="Idioma dominante de la descripción o None")
     keywords: list[str]
     posted_at: datetime | None

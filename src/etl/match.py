@@ -52,6 +52,7 @@ class FitRules(_Strict):
     hours_per_day: tuple[float, float]
     hours_per_week: tuple[float, float]
     full_time: FitAction
+    max_years_experience: float = Field(ge=0)
 
 
 class Calibration(_Strict):
@@ -303,6 +304,13 @@ def assess_fit(v: Vacante, profile: Profile) -> Fit:
             reviews.append(
                 f"{h.min:g}–{h.max:g} h/{unit} fuera de tu rango {rng[0]:g}–{rng[1]:g}"
             )
+
+    # Años de experiencia: el texto pide más de lo que puedo acreditar
+    exp = v.experience
+    if exp.years is not None and exp.years > rules.max_years_experience:
+        blockers.append(
+            f"pide {exp.years:g}+ años de experiencia (acreditas {rules.max_years_experience:g})"
+        )
 
     verdict: Verdict = "no_apta" if blockers else "revisar" if reviews else "apta"
     return Fit(verdict=verdict, blockers=blockers, reviews=reviews, warnings=warnings)
