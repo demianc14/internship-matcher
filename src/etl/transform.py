@@ -89,6 +89,19 @@ def clean_description(raw: str) -> str:
     return re.sub(r"\s+", " ", "".join(parser.chunks).replace("\xa0", " ")).strip()
 
 
+_LINKEDIN_JOB = re.compile(r"(?:currentJobId=|/jobs/view/(?:[^/?#]*-)?)(\d{6,})")
+
+
+def canonical_url(url: str) -> str:
+    """Un enlace de LinkedIn copiado desde una búsqueda trae la vacante en
+    `currentJobId` más parámetros de rastreo; se reduce a /jobs/view/<id>/, que es
+    el enlace permanente. Cualquier otro URL queda tal cual."""
+    if "linkedin.com" not in url:
+        return url
+    m = _LINKEDIN_JOB.search(url)
+    return f"https://www.linkedin.com/jobs/view/{m.group(1)}/" if m else url
+
+
 def normalize_key(text: str | None) -> str | None:
     """Para comparar (dedup): sin acentos, minúsculas, solo alfanumérico."""
     if text is None:
@@ -451,6 +464,7 @@ def detect_language(text: str, min_hits: int = 5, min_hits_unopposed: int = 3) -
 # --- Keywords --------------------------------------------------------------------
 
 Vocabulary = dict[str, list[str]]
+Implications = dict[str, list[str]]  # skill → skills que demuestra (vocabulario `implies`)
 
 
 def load_vocabulary(path: Path) -> Vocabulary:
@@ -472,7 +486,7 @@ def load_vocabulary(path: Path) -> Vocabulary:
     return vocab
 
 
-def load_implications(path: Path, vocab: Vocabulary) -> dict[str, list[str]]:
+def load_implications(path: Path, vocab: Vocabulary) -> Implications:
     """Lee la sección opcional `implies`. Toda clave/valor debe existir en el vocabulario."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     implies = data.get("implies") or {}
@@ -485,6 +499,17 @@ def load_implications(path: Path, vocab: Vocabulary) -> dict[str, list[str]]:
         if unknown:
             raise ValueError(f"{path}: implies.{key} usa términos fuera del vocabulario: {unknown}")
     return {str(k): [str(x) for x in v] for k, v in implies.items()}
+
+
+def expand_keywords(keywords: Iterable[str], implications: Implications) -> set[str]:
+    """Keywords + las que implican (Power Automate ⇒ process automation, low-code).
+
+    Un solo nivel a propósito: las implicaciones del vocabulario son directas y
+    encadenarlas abriría la puerta a deducciones que ya nadie revisó a mano."""
+    found = set(keywords)
+    for k in list(found):
+        found.update(implications.get(k, []))
+    return found
 
 
 def compile_vocabulary(vocab: Vocabulary) -> dict[str, Pattern[str]]:
@@ -526,7 +551,7 @@ def normalize(
         source_id=raw.source_id,
         title=title,
         company=company,
-        url=raw.url,
+        url=canonical_url(str(raw.url)),  # type: ignore[arg-type]
         description_text=description,
         location=location,
         location_source=location_source,  # type: ignore[arg-type]

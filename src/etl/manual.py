@@ -35,14 +35,16 @@ SEPARATOR = re.compile(r"^-{3,}\s*$", re.MULTILINE)
 REQUIRED = ("url", "title")
 OPTIONAL = ("company", "location", "modality", "employment", "posted_at", "tags")
 
-TEMPLATE = """url:
+PLACEHOLDER = "(pega aquí el aviso completo, tal cual)"
+
+TEMPLATE = f"""url:
 title:
 # Opcionales (bórralos si no los usas): company, location, modality, employment,
 # posted_at. Todo lo demás (modalidad, ciudad, horas, seniority, idioma, keywords)
 # se deduce del texto de abajo.
 company:
 ---
-(pega aquí el aviso completo, tal cual)
+{PLACEHOLDER}
 """
 
 
@@ -62,6 +64,8 @@ def parse_manual_file(path: Path, fetched_at: datetime) -> RawVacante | RecordEr
         )  # fmt: skip
 
     header, body = parts
+    # La línea guía de la plantilla no es parte del aviso (quedaba pegada encima)
+    body = body.replace(PLACEHOLDER, "")
     fields: dict[str, str] = {}
     for lineno, line in enumerate(header.splitlines(), 1):
         line = line.strip()

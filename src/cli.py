@@ -143,7 +143,8 @@ def main(argv: list[str] | None = None) -> int:
     cv_path = Path(profile.cv_path).expanduser()
     cv = parse_cv(cv_path, compile_vocabulary(vocab)) if cv_path.exists() else None
     passages = [profile.summary.strip(), *(b.text for b in cv.bullets)] if cv else None
-    results = Matcher(profile, embedder, passages).match_all(vacantes)
+    implications = load_implications(VOCAB_PATH, vocab)
+    results = Matcher(profile, embedder, passages, implications).match_all(vacantes)
     matches_path = PROCESSED_DIR / "matches.jsonl"
     matches_path.write_text(
         "".join(r.model_dump_json() + "\n" for r in results), encoding="utf-8"
@@ -160,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     # que aquí solo aportarían lentitud: lo que se muestra son skills y bullets.
     suggestions = {}
     if cv is not None:
-        suggester = Suggester(cv, profile, implications=load_implications(VOCAB_PATH, vocab))
+        suggester = Suggester(cv, profile, implications=implications)
         by_id = {v.id: v for v in vacantes}
         for r in results:
             if r.fit.verdict != "no_apta":
@@ -177,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\nNo encuentro el CV en {cv_path} (cv_path en skills_profile.yaml)",
                   file=sys.stderr)  # fmt: skip
             return 1
-        audit = profile_consistency(cv, profile)
+        audit = profile_consistency(cv, profile, implications)
         if any(audit.values()):
             print(f"\n⚠ perfil y CV desalineados: {audit}", file=sys.stderr)
         print(f"\n=== Sugerencias de CV ({cv_path.name}) ===")

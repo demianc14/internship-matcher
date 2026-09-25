@@ -76,6 +76,9 @@ skills:
   power automate:
     tier: demostrado
     evidence: "Flujo de validación automática en Power Automate: +20 validaciones, +85 campos, +400 registros"
+  process automation:
+    tier: demostrado
+    evidence: "Automatización de procesos administrativos en el Galápagos Science Center: validación de admisiones en Power Automate y agendamiento en Apps Script"
   google apps script:
     tier: demostrado
     evidence: "Formulario de agendamiento en Google Apps Script con branching y control de cupos en tiempo real"

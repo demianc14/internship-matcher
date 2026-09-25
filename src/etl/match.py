@@ -20,7 +20,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.etl.schema import Seniority, Vacante
-from src.etl.transform import Vocabulary
+from src.etl.transform import Implications, Vocabulary
 
 Tier = Literal["demostrado", "listado", "en_formacion"]
 Verdict = Literal["apta", "revisar", "no_apta"]
@@ -131,9 +131,33 @@ class SkillsBreakdown(_Strict):
     note: str | None = None
 
 
-def score_skills(v: Vacante, profile: Profile) -> SkillsBreakdown:
+def effective_skills(
+    profile: Profile, implications: Implications | None = None
+) -> dict[str, SkillEntry]:
+    """Skills del perfil + las que implican (vocabulario `implies`).
+
+    Una skill implícita hereda el tier de la que la implica y cita de dónde sale:
+    "low-code" no aparece en el CV, pero Power Automate sí y es low-code. Si el
+    perfil ya declara la skill, gana la declaración explícita."""
+    skills = dict(profile.skills)
+    for source, targets in (implications or {}).items():
+        if source not in profile.skills:
+            continue
+        origin = profile.skills[source]
+        for target in targets:
+            skills.setdefault(
+                target,
+                SkillEntry(tier=origin.tier, evidence=f"implícita por {source}: {origin.evidence}"),
+            )
+    return skills
+
+
+def score_skills(
+    v: Vacante, profile: Profile, implications: Implications | None = None
+) -> SkillsBreakdown:
     """Cobertura ponderada: Σ peso(tier) de las skills pedidas que tengo, dividido por
     max(# pedidas, min_required_skills) para no inflar vacantes con 1–2 keywords."""
+    have = effective_skills(profile, implications)
     required = [k for k in v.keywords if k not in LANGUAGE_KEYWORDS]
     if not required:
         return SkillsBreakdown(
@@ -143,14 +167,14 @@ def score_skills(v: Vacante, profile: Profile) -> SkillsBreakdown:
     matched = [
         SkillMatch(
             skill=k,
-            tier=profile.skills[k].tier,
-            weight=profile.tier_weights[profile.skills[k].tier],
-            evidence=profile.skills[k].evidence,
+            tier=have[k].tier,
+            weight=profile.tier_weights[have[k].tier],
+            evidence=have[k].evidence,
         )
         for k in required
-        if k in profile.skills
+        if k in have
     ]
-    missing = [k for k in required if k not in profile.skills]
+    missing = [k for k in required if k not in have]
     denominator = max(len(required), profile.min_required_skills)
     note = None
     if denominator > len(required):
@@ -365,19 +389,21 @@ class Matcher:
         profile: Profile,
         embedder: Embedder | None = None,
         passages: Sequence[str] | None = None,
+        implications: Implications | None = None,
     ) -> None:
         """`passages`: textos del perfil contra los que se compara la vacante. Por
         defecto, el resumen + la evidencia de cada skill; la CLI pasa los bullets
         del CV, que son más específicos."""
         self.profile = profile
         self.embedder = embedder
+        self.implications = implications or {}
         self.passages = list(passages) if passages else [
             profile.summary.strip(), *(s.evidence for s in profile.skills.values())
         ]
         self.passage_vecs = embedder.encode(self.passages) if embedder else []
 
     def match(self, v: Vacante) -> MatchResult:
-        skills = score_skills(v, self.profile)
+        skills = score_skills(v, self.profile, self.implications)
         if self.embedder is None:
             semantic = SemanticBreakdown(
                 value=None, raw_similarity=None, top_pairs=[], note="embeddings desactivados"

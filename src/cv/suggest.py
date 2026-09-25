@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.cv.parser import Bullet, CVDocument
 from src.etl.match import LANGUAGE_KEYWORDS, Embedder, Profile, _cosine, split_sentences
 from src.etl.schema import Vacante
+from src.etl.transform import expand_keywords
 
 
 class _Model(BaseModel):
@@ -123,7 +124,8 @@ class Suggester:
         # 1. Bullets a destacar: por # de skills cubiertas, luego similitud semántica
         scored = []
         for i, b in enumerate(cv.bullets):
-            covers = sorted(req & set(b.keywords))
+            # Un bullet que nombra Power Automate también cubre "process automation"
+            covers = sorted(req & expand_keywords(b.keywords, self.implications))
             sim = sims[i] if sims is not None else None
             if covers or (sim is not None and sim >= self.profile.semantic_calibration.high):
                 scored.append((len(covers), sim or 0.0, b, covers, sim))
@@ -137,7 +139,7 @@ class Suggester:
         ]
 
         # 2. Skills a nombrar y 5. brechas
-        in_bullets = cv.keywords_in_bullets()
+        in_bullets = expand_keywords(cv.keywords_in_bullets(), self.implications)
         mention: list[MentionHint] = []
         gaps: list[str] = []
         for skill in required:
@@ -177,7 +179,7 @@ class Suggester:
         def relevance(title: str) -> int:
             e = cv.entry(title)
             bullet_kws = {k for b in cv.bullets if b.id in e.bullet_ids for k in b.keywords}
-            return len(req & (set(e.keywords) | bullet_kws))
+            return len(req & expand_keywords({*e.keywords, *bullet_kws}, self.implications))
 
         entry_order: dict[str, list[str]] = {}
         for section in cv.sections:
@@ -223,11 +225,18 @@ class Suggester:
         return notes
 
 
-def profile_consistency(cv: CVDocument, profile: Profile) -> dict[str, list[str]]:
+def profile_consistency(
+    cv: CVDocument, profile: Profile, implications: dict[str, list[str]] | None = None
+) -> dict[str, list[str]]:
     """Audita que skills_profile.yaml siga derivado del CV (el perfil se escribió a
-    mano a partir del CV; esto detecta cuando uno cambia y el otro no)."""
+    mano a partir del CV; esto detecta cuando uno cambia y el otro no).
+
+    Una skill del perfil cuenta como respaldada si el CV la nombra o si la implica
+    algo que el CV nombra. Al revés no: que el CV implique "low-code" no obliga a
+    declararlo en el perfil, porque `effective_skills` ya lo deduce."""
     in_cv = cv.keywords_anywhere() - set(LANGUAGE_KEYWORDS)
+    backed = expand_keywords(in_cv, implications or {})
     return {
-        "en_perfil_no_en_cv": sorted(set(profile.skills) - in_cv),
+        "en_perfil_no_en_cv": sorted(set(profile.skills) - backed),
         "en_cv_no_en_perfil": sorted(in_cv - set(profile.skills)),
     }

@@ -208,3 +208,7 @@ descartó y por qué, y qué decisión quedó pendiente para la fase siguiente
   bloquea** (umbral estricto, `fit.max_years_experience` en el perfil). Sin esto, el
   ranking ponía arriba vacantes de 5 y 7 años: el seniority del título no alcanza
   (98 de 348 vacantes piden años y en 60 no había señal de nivel).
+- **2026-09-25 — Implicaciones en todo el sistema:** `implies` ya no es solo para
+  sugerencias: cuenta en el score (hereda tier) y en la cobertura de bullets. Vocabulario
+  suma "process automation" (RPA), "low-code" e IA generativa. Detectado con la primera
+  vacante manual real (StrategIA, pasante de automatización e IA).

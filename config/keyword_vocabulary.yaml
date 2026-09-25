@@ -29,7 +29,7 @@ keywords:
   scikit-learn: [scikit-learn, sklearn]
   pytorch: [pytorch]
   tensorflow: [tensorflow]
-  machine learning: [machine learning, ml engineer, aprendizaje automático]
+  machine learning: [machine learning, ml, ml engineer, aprendizaje automático]
   deep learning: [deep learning]
   nlp: [nlp, natural language processing]
   statistics: [statistics, statistical, statistik, estadística, estadístico, estadísticos,
@@ -39,7 +39,8 @@ keywords:
   spark: [spark, pyspark]
   airflow: [airflow]
   dbt: [dbt]
-  llm: [llm, llms, large language model, large language models]
+  llm: [llm, llms, large language model, large language models, generative ai, genai,
+        ia generativa]
 
   # BI / ofimática
   power bi: [power bi, powerbi]
@@ -55,7 +56,14 @@ keywords:
   mypy: [mypy]
   junit: [junit]
 
-  # Automatización
+  # Automatización. "process automation" agrupa RPA y automatización de procesos:
+  # los avisos en español lo dicen de las dos formas ("herramientas de RPA",
+  # "automatización con robótica de procesos").
+  process automation: [process automation, automatización de procesos,
+                       automatizacion de procesos, procesos automatizados, rpa,
+                       robotic process automation, robótica de procesos,
+                       robotica de procesos]
+  low-code: [low-code, low code, lowcode, no-code, no code]
   power automate: [power automate, microsoft power automate]
   google apps script: [google apps script, apps script]
 
@@ -103,6 +111,10 @@ keywords:
 # inequívocas (usar MySQL es escribir SQL). Las usa cv/suggest para ubicar dónde
 # nombrar una skill que el CV respalda de forma indirecta.
 implies:
+  # Power Automate ES una plataforma low-code de automatización de procesos (RPA
+  # incluido); Apps Script es JavaScript.
+  power automate: [process automation, low-code]
+  google apps script: [process automation, javascript]
   mysql: [sql]
   postgresql: [sql]
   spring boot: [java]

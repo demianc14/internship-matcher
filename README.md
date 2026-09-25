@@ -10,7 +10,7 @@ testeables y un reporte de calidad cuantificado — mismo espíritu que
 [MetalurgicaAndina_QC](https://github.com/demianc14/MetalurgicaAndina_QC).
 
 > Estado: fases 0–6 cerradas, más un reporte HTML para revisar los resultados.
-> 189 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
+> 200 tests, 96 % de cobertura, `ruff` y `mypy` limpios.
 
 ## Qué produce
 
@@ -144,7 +144,18 @@ Cada campo clasificado es un `Resolved` con **valor + origen + evidencia citada*
 | Horas | título + descripción | Solo explícitas y plausibles (≤12 h/día, ≤60 h/semana). No se convierte semana↔día. |
 | Experiencia | descripción | Años pedidos ("2+ years of experience"). Se ignora la trayectoria de la empresa ("With more than 40 years…") y todo lo que pase de 15 años. Con varios requisitos se guarda el menor. |
 | Idioma | descripción | Stopwords en/de/es/fr; sin ganador claro ⇒ `None`. Umbral más bajo si no hay evidencia de otro idioma (los avisos locales son cortos). |
-| Keywords | título + descripción | `config/keyword_vocabulary.yaml`, con alias en es/en/de e implicaciones (MySQL ⇒ SQL). |
+| Keywords | título + descripción | `config/keyword_vocabulary.yaml`, con alias en es/en/de ("RPA" y "automatización de procesos" son la misma skill). |
+
+**Implicaciones** (`implies` en el vocabulario): tener una skill demuestra otras —
+Power Automate ⇒ automatización de procesos y low-code; MySQL ⇒ SQL; Apps Script ⇒
+JavaScript. Valen en todo el sistema: en el score (la skill implícita hereda el tier de
+la que la implica y cita de dónde sale), en qué bullet cubre qué requisito y en la
+auditoría perfil↔CV. Un solo nivel, sin encadenar. Se descubrió con la primera vacante
+real cargada a mano: pedía RPA y low-code, y el sistema sugería destacar las
+simulaciones Monte Carlo en vez del flujo de Power Automate.
+
+**URLs:** un enlace de LinkedIn copiado desde una búsqueda (`?currentJobId=…&geoId=…`)
+se reduce al enlace permanente `/jobs/view/<id>/`.
 
 **Dedup:** mismo id ⇒ se queda el más reciente. Mismo título+empresa+ubicación
 normalizados ⇒ duplicado entre fuentes. Mismo título+empresa en **otra ciudad se
@@ -223,7 +234,7 @@ como no verificado. `profile_consistency()` audita que el perfil siga derivado d
 ## Calidad
 
 ```
-189 tests · 96 % de cobertura · ruff y mypy limpios
+200 tests · 96 % de cobertura · ruff y mypy limpios
 transform 97 % · match 98 % · cv/parser 97 % · cv/suggest 95 % · manual 100 % · report 100 %
 ```
 

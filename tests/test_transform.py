@@ -11,6 +11,7 @@ import pytest
 from src.etl.extract import parse_arbeitnow
 from src.etl.schema import RawVacante
 from src.etl.transform import (
+    canonical_url,
     classify_modality,
     classify_schedule,
     classify_seniority,
@@ -18,6 +19,7 @@ from src.etl.transform import (
     compile_vocabulary,
     dedup,
     detect_language,
+    expand_keywords,
     extract_experience,
     extract_hours,
     extract_keywords,
@@ -325,3 +327,28 @@ def test_experience_ignores_company_history(text: str) -> None:
 def test_experience_evidence_is_quoted() -> None:
     e = extract_experience("Requirements: 4+ years of experience with data pipelines")
     assert e.evidence and "4+ years of experience" in e.evidence
+
+
+def test_expand_keywords_is_one_level_only() -> None:
+    implications = {"power automate": ["process automation", "low-code"], "low-code": ["x"]}
+    expanded = expand_keywords(["power automate", "python"], implications)
+    assert expanded == {"power automate", "python", "process automation", "low-code"}
+    assert "x" not in expanded  # no se encadena: low-code no implica más cosas aquí
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "https://www.linkedin.com/jobs/search-results/?currentJobId=4471839869&eBP=X&geoId=1",
+            "https://www.linkedin.com/jobs/view/4471839869/",
+        ),
+        (
+            "https://www.linkedin.com/jobs/view/pasante-ia-at-strategia-4471839869?trk=abc",
+            "https://www.linkedin.com/jobs/view/4471839869/",
+        ),
+        ("https://www.multitrabajos.com/empleos/x-123", "https://www.multitrabajos.com/empleos/x-123"),
+    ],
+)
+def test_canonical_url(url: str, expected: str) -> None:
+    assert canonical_url(url) == expected

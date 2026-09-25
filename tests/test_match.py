@@ -17,6 +17,7 @@ from src.etl.match import (
     Matcher,
     Profile,
     assess_fit,
+    effective_skills,
     load_profile,
     score_skills,
     split_sentences,
@@ -274,3 +275,26 @@ def test_experience_above_what_i_can_show_blocks(years: float | None, verdict: s
     assert fit.verdict == verdict
     if verdict == "no_apta":
         assert any("años de experiencia" in b for b in fit.blockers)
+
+
+IMPLIES = {"power automate": ["process automation", "low-code"], "mysql": ["sql"]}
+
+
+def test_implied_skill_counts_with_the_tier_of_its_source() -> None:
+    """Caso real (aviso de StrategIA): pide low-code; el CV no lo dice, pero Power
+    Automate es low-code y está demostrado."""
+    b = score_skills(vac(keywords=["low-code", "typescript"]), PROFILE, IMPLIES)
+    (m,) = b.matched
+    assert (m.skill, m.tier) == ("low-code", "demostrado")
+    assert m.evidence.startswith("implícita por power automate")
+    assert b.missing == ["typescript"]
+
+
+def test_without_implications_the_same_skill_is_missing() -> None:
+    assert score_skills(vac(keywords=["low-code"]), PROFILE).missing == ["low-code"]
+
+
+def test_explicit_profile_entry_wins_over_implication() -> None:
+    have = effective_skills(PROFILE, IMPLIES)
+    assert not have["process automation"].evidence.startswith("implícita")  # declarada
+    assert have["low-code"].evidence.startswith("implícita por power automate")

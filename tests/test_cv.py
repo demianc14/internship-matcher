@@ -201,3 +201,20 @@ def test_real_cv_parses_and_matches_the_profile() -> None:
     assert len(cv.bullets) >= 15 and cv.summary_section is not None
     audit = profile_consistency(cv, PROFILE)
     assert audit == {"en_perfil_no_en_cv": [], "en_cv_no_en_perfil": []}
+
+
+def test_implication_makes_a_bullet_cover_the_skill() -> None:
+    """Un bullet con Power Automate cubre 'process automation' aunque no lo diga."""
+    cv = parse_cv(Path(__file__).parent / "fixtures" / "cv_sample.tex", COMPILED)
+    implies = {"google apps script": ["process automation"]}
+    s = Suggester(cv, PROFILE, implications=implies).suggest(vac(keywords=["process automation"]))
+    assert [p.bullet_id for p in s.highlight] == ["b02"]  # "…en Google Apps Script"
+    assert s.gaps == [] and s.mention == []
+
+
+def test_consistency_accepts_skills_backed_by_implication() -> None:
+    cv = parse_cv(Path(__file__).parent / "fixtures" / "cv_sample.tex", COMPILED)
+    sin = profile_consistency(cv, PROFILE)
+    con = profile_consistency(cv, PROFILE, {"google apps script": ["process automation"]})
+    assert "process automation" in sin["en_perfil_no_en_cv"]
+    assert "process automation" not in con["en_perfil_no_en_cv"]

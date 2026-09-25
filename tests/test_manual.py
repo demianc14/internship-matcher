@@ -120,3 +120,23 @@ def test_infer_location(text: str, expected: str | None) -> None:
     assert city == expected
     if expected:
         assert evidence and expected.split()[0].casefold() in evidence.casefold() or evidence
+
+
+def test_template_placeholder_is_not_part_of_the_ad(tmp_path: Path) -> None:
+    """Caso real: se pegó el aviso debajo de la línea guía sin borrarla."""
+    contenido = (
+        "url: https://x.io/1\ntitle: Pasante\n---\n"
+        "(pega aquí el aviso completo, tal cual)\nPasantía en Quito."
+    )
+    parsed = parse_manual_file(write(tmp_path, "v.md", contenido), NOW)
+    assert isinstance(parsed, RawVacante)
+    assert "pega aquí" not in parsed.description_raw
+    assert parsed.description_raw == "Pasantía en Quito."
+
+
+def test_template_with_only_the_placeholder_is_rejected(tmp_path: Path) -> None:
+    contenido = (
+        "url: https://x.io/1\ntitle: Pasante\n---\n(pega aquí el aviso completo, tal cual)\n"
+    )
+    parsed = parse_manual_file(write(tmp_path, "v.md", contenido), NOW)
+    assert isinstance(parsed, RecordError) and "vacío" in parsed.reason
