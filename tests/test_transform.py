@@ -352,3 +352,23 @@ def test_expand_keywords_is_one_level_only() -> None:
 )
 def test_canonical_url(url: str, expected: str) -> None:
     assert canonical_url(url) == expected
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Technical Lead (Platform)",
+        "Marketplace Optimisation Lead",
+        "Lead Product Designer",
+        "AI Solutions Lead",
+        "Quadrants: Compiler Lead",
+    ],
+)
+def test_lead_in_title_is_senior(title: str) -> None:
+    """Casos reales que se colaban como 'revisar' en vez de bloquearse."""
+    assert classify_seniority(raw(title=title)).value == "senior"
+
+
+def test_lead_generation_is_not_a_seniority_signal() -> None:
+    assert classify_seniority(raw(title="Lead Generation Specialist")).value is None
+    assert classify_seniority(raw(title="Lead Gen Associate")).value is None

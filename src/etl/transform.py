@@ -309,8 +309,10 @@ _SENIORITY = {
     "mid": _compile(r"\b(?:mid(?:[\s-](?:level|senior))?|intermediate)\b"),
     "senior": _compile(
         r"(?<!mid-)(?<!mid )\b(?:senior|sr\.?|principal|staff|director|head of|vp)\b",
-        r"\b(?:team|tech)[\s-]lead\b",
-        r"\blead (?:engineer|developer|data|analyst|scientist|designer)\b",
+        # "Lead" en el título es un puesto de liderazgo ("Technical Lead", "AI Solutions
+        # Lead", "Lead Product Designer"). Única excepción: "Lead Generation" (ventas).
+        # La versión anterior solo aceptaba "team/tech lead" y dejaba pasar 11 de 15.
+        r"\blead\b(?!\s*gen)",
     ),
 }  # fmt: skip
 _SCHEDULE = {
