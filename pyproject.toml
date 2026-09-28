@@ -3,29 +3,30 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "internship-matcher"
+name = "cv-matcher"
 version = "0.1.0"
-description = "Pipeline ETL de vacantes + matching semántico explicable contra un perfil de habilidades y Base_CV.tex"
+description = "Dado un JD pegado a mano, analiza el fit contra Base CV.tex y sugiere ediciones con matching testeable"
 readme = "README.md"
 requires-python = ">=3.11"
-# Las dependencias de runtime se agregan en la fase que las necesita
-# (fastapi en Fase 5). Embeddings: extra opcional [semantic].
+# Las dependencias de runtime se agregan en el paso que las necesita
+# Sin dependencias de scraping: el input siempre es un JD pegado a mano.
 dependencies = [
     "pydantic>=2.7.0",
-    "requests>=2.32.0",
     "pyyaml>=6.0",
+    "google-genai>=1.0",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-semantic = ["sentence-transformers>=3.0"]
-dev = ["pytest>=8.2.0", "pytest-cov>=5.0.0", "ruff>=0.4.0", "mypy>=1.10.0", "types-requests>=2.32.0", "types-PyYAML>=6.0"]
+dev = ["pytest>=8.2.0", "pytest-cov>=5.0.0", "ruff>=0.4.0", "mypy>=1.10.0", "types-PyYAML>=6.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not llm'"
+markers = ["llm: llama al LLM real (o usa su caché); correr con `pytest -m llm`"]
 
 [tool.ruff]
 line-length = 100
@@ -40,9 +41,10 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
 
-# Las dependencias del extra [semantic] traen stubs con sintaxis de 3.12+; el
-# proyecto declara 3.11, así que no se siguen sus imports.
+
+# pytest importa numpy solo para tipos, y los stubs de numpy usan sintaxis de 3.12+;
+# el proyecto declara 3.11, así que no se siguen.
 [[tool.mypy.overrides]]
-module = ["numpy.*", "torch.*", "sentence_transformers.*"]
+module = ["numpy.*", "google.genai.*"]
 follow_imports = "skip"
 follow_imports_for_stubs = true
