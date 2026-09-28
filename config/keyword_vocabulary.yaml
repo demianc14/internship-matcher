@@ -1,13 +1,13 @@
-# Vocabulario GENÉRICO de habilidades que transform busca en cada vacante.
-#
-# No es mi perfil (ese será config/skills_profile.yaml en la Fase 3): esto solo
-# define qué términos se reconocen como requisito/keyword, sin importar si los
-# tengo o no. canónico: [alias...]. El match ignora mayúsculas y exige límites
+# Vocabulario GENÉRICO de habilidades: lo que el parser del CV y el matcher
+# reconocen como keyword, sin importar si la tengo o no. canónico: [alias...]. El match ignora mayúsculas y exige límites
 # de palabra, así que "java" no matchea dentro de "javascript". Alias en en/de/es
 # porque las vacantes (y el CV) vienen en varios idiomas.
 #
 # Excluidos a propósito por ambiguos en texto libre: "R" (letra suelta),
 # "Go" (verbo), "Excel" como verbo ("excel at") → solo "microsoft excel"/"excel skills".
+# Esa exclusión aplica al texto libre. Un ítem de una LISTA de skills que es
+# exactamente el nombre canónico o un alias ("Excel") sí se reconoce: ver
+# Vocabulary.canonicalize.
 
 keywords:
   # Lenguajes
@@ -19,6 +19,7 @@ keywords:
   c++: [c++]
   c#: [c#]
   golang: [golang]
+  kotlin: [kotlin]
   scala: [scala]
   matlab: [matlab]
   bash: [bash, shell scripting]
@@ -41,6 +42,12 @@ keywords:
   dbt: [dbt]
   llm: [llm, llms, large language model, large language models, generative ai, genai,
         ia generativa]
+  # Genérico a propósito: muchos avisos piden "IA" sin más. "ia"/"ai" sueltos
+  # respetan límites de palabra, así que no matchean dentro de otras palabras.
+  artificial intelligence: [artificial intelligence, inteligencia artificial, ai, ia]
+  ai agents: [ai agents, llm agents, agentic ai, agentic systems, ia agéntica, agentes de ia]
+  rag: [rag, retrieval-augmented generation, retrieval augmented generation]
+  computer vision: [computer vision, visión por computadora, visión artificial]
 
   # BI / ofimática
   power bi: [power bi, powerbi]
@@ -74,6 +81,9 @@ keywords:
   django: [django]
   flask: [flask]
   rest api: [rest api, rest apis, restful, api rest, apis rest]
+  apis: [api, apis, web api, web apis]
+  databases: [database, databases, base de datos, bases de datos, relational database,
+              esquema relacional]
   postgresql: [postgresql, postgres]
   mysql: [mysql]
   mongodb: [mongodb]
@@ -98,8 +108,10 @@ keywords:
   sap: [sap]
   hubspot: [hubspot]
   jira: [jira]
+  crm: [crm, crm software]
+  workday: [workday]
 
-  # Idiomas mencionados: el match los trata aparte, no cuentan como skills.
+  # Idiomas: se reconocen, pero están en non_skills (abajo) y no cuentan como skill.
   # Ruido posible: "German company" también matchea.
   english: [english, englisch, inglés]
   german: [german, deutsch, deutschkenntnisse, alemán]
@@ -107,14 +119,18 @@ keywords:
   french: [french, französisch, francés]
   italian: [italian, italienisch, italiano]
 
+# Términos reconocidos que el matcher NO trata como skill (se piden, pero no son
+# algo que un bullet del CV deba demostrar).
+non_skills: [english, german, spanish, french, italian]
+
 # Implicaciones: tener la clave demuestra también las skills de la lista. Solo las
-# inequívocas (usar MySQL es escribir SQL). Las usa cv/suggest para ubicar dónde
-# nombrar una skill que el CV respalda de forma indirecta.
+# inequívocas (usar MySQL es escribir SQL). Se aplican del lado del CV.
 implies:
   # Power Automate ES una plataforma low-code de automatización de procesos (RPA
   # incluido); Apps Script es JavaScript.
   power automate: [process automation, low-code]
   google apps script: [process automation, javascript]
-  mysql: [sql]
-  postgresql: [sql]
+  mysql: [sql, databases]
+  postgresql: [sql, databases]
+  rest api: [apis]
   spring boot: [java]

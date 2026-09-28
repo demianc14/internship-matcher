@@ -69,6 +69,9 @@ class MatchResult(BaseModel):
    offline hechos; falta la corrida real (`pytest -m llm`).**
 3. `matcher.py`: depende de que los dos anteriores den datos limpios. Empezar con
    overlap de keywords (sets) antes de meter un segundo pase de LLM para reescritura.
+   **Capa determinística hecha (2026-09-28).** Pendiente: `suggested_rewrite` con LLM,
+   validado sin LLM (keywords ⊆ bullet ∪ respaldo del proyecto; números solo del bullet
+   original).
 
 ## Reglas del pivot (para no reintroducir lo descartado)
 
@@ -129,5 +132,16 @@ class MatchResult(BaseModel):
   flash-lite no se puede, se documenta como limitación con datos.
 - **2026-09-28 — Keys** en `.env` (gitignored, chmod 600), cargado con python-dotenv por
   la CLI y los tests `llm`. Tests `llm` excluidos por defecto: `pytest -m llm`.
+- **2026-09-28 — Matcher (capa sin LLM).** Veredicto separado del score, política en
+  `config/fit.yaml` (non_technical, mid y senior ⇒ no_apta; junior e indeterminado ⇒
+  revisar; pasantía ⇒ apta). Cada skill del JD cae en una de cuatro categorías: en un
+  bullet / en el CV sin bullet / en formación / carencia. Las carencias nunca se
+  sugieren. `missing_keywords` = lo que el stack del proyecto respalda y el bullet no
+  nombra. Modelos extra respecto del spec: `JDMatch` y `MatchResult.matched_keywords`.
+  `parse_backing` lee el stack de cada `\cventry` y las filas `\skillrow`; los ítems
+  "(en formación)" van aparte.
+- **2026-09-28 — Vocabulario:** `canonicalize` para ítems de una lista de skills ("Excel"
+  suelto vale ahí); `non_skills` (idiomas); términos nuevos solo inequívocos. La
+  cobertura del vocabulario sobre las skills extraídas es una métrica a vigilar (era 15/31).
 - **Pendiente:** fixtures `agents_booster.txt` y `movmo.txt` (Demian los pega después);
   jornada/carga horaria no está en `JDRequirements` (relevante para 4–6 h/día).

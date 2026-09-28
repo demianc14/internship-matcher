@@ -10,9 +10,9 @@ Base CV.tex ──cv_parser──► list[Bullet] ─┐
 JD (.txt) ──jd_extractor (LLM)──► JDRequirements ─┘
 ```
 
-> **Estado:** en reconstrucción tras el pivot (ver abajo). Hecho: `cv_parser`,
-> vocabulario y `jd_extractor` (con tests offline). Pendiente: corrida de regresión
-> contra el modelo gratuito, `matcher`, `cli match`.
+> **Estado:** hecho: `cv_parser`, vocabulario, `jd_extractor` (regresión 7/7 con
+> `gemini-3.5-flash-lite`, prompt v2) y la capa determinística del `matcher` con
+> `cli match`. Pendiente: reescritura de bullets con LLM (`suggested_rewrite`).
 
 ## Quickstart
 
@@ -23,6 +23,7 @@ python -m src.cli bullets                 # bullets del CV real con sus keywords
 python -m src.cli bullets tests/fixtures/cv_sample.tex
 cp .env.example .env                      # y pega tu GEMINI_API_KEY
 python -m src.cli extract data/jds/strategia.txt
+python -m src.cli match data/jds/strategia.txt   # veredicto + cobertura contra tu CV
 pytest && ruff check . && mypy src tests  # offline
 pytest -m llm                             # regresión contra Gemini (usa caché)
 ```
@@ -35,7 +36,7 @@ pytest -m llm                             # regresión contra Gemini (usa caché
 | `src/cv_parser.py` | `.tex` → `list[Bullet(project, text, keywords)]` | no |
 | `src/llm.py` | protocolo `ClienteLLM` + `GeminiCliente` (única parte que habla con un proveedor) | sí |
 | `src/jd_extractor.py` | texto del JD → `JDRequirements` validado con Pydantic; recibe el cliente por inyección | vía `ClienteLLM` |
-| `src/matcher.py` | bullets × requisitos → `MatchResult` por bullet | capa 1 no; reescritura opcional sí |
+| `src/matcher.py` | bullets + respaldo del CV × requisitos → `JDMatch` (veredicto, cobertura, `MatchResult` por bullet) con política en `config/fit.yaml` | no (la reescritura con LLM irá aparte) |
 
 El matcher tiene una capa determinística (overlap de sets sobre el vocabulario)
 **antes** de cualquier llamada al LLM, así que se testea sin mockear la API.
@@ -98,6 +99,33 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   distintos nunca se mezclan. **Al leer resultados de regresión, revisa de qué
   modelo salieron** (campo `model` del caché, o `[modelo]` en la CLI y en los
   mensajes de fallo). Que un test pase con un modelo no dice nada del otro.
+- **Veredicto y score son independientes.** El veredicto (`apta`/`revisar`/`no_apta`)
+  sale solo de `role_family` y el nivel, contra `config/fit.yaml`: rol no técnico,
+  mid o senior ⇒ no apta; junior o nivel indeterminado ⇒ revisar. Ninguna cobertura
+  de skills rescata un rol bloqueado. Ejemplo: Social Comms tiene 100 % de cobertura
+  porque pide una sola skill que tengo (LLM), y sigue siendo no apta.
+- **Cuatro categorías por skill, sin inventar.** Cada skill del aviso cae en una sola:
+  en un bullet · en el CV pero sin bullet (stack de un proyecto o fila de
+  habilidades: se puede nombrar con honestidad) · en formación (no se presenta como
+  dominada) · no está en el CV (se lista, nunca se sugiere). Motivo medido: Software
+  Engineer JVM pide SQL; está en mis habilidades y en el stack del proyecto con MySQL,
+  pero en ningún bullet, y el cruce solo por bullets lo daba como carencia.
+- **`missing_keywords` por bullet = lo que su proyecto respalda y el bullet no nombra.**
+  Se agregó `matched_keywords` a `MatchResult` (no está en el spec): sin ese campo, un
+  bullet con Power Automate marcaba 22 % sin decir por qué (lo explica la implicación
+  a "process automation" y "low-code").
+- **Cobertura con pocas skills engaña.** El porcentaje se muestra siempre junto con
+  cuántas skills reconoció el aviso ("1/1" no es "7/9"). Los avisos no técnicos
+  reconocen pocas: la mayoría de sus términos (ventas, compensaciones) están fuera
+  del vocabulario, y se reportan como "no reconocidas".
+- **Las certificaciones cuentan como bullets.** "Introducción a la IA – IBM" cubre
+  "artificial intelligence". Es respaldo real pero débil; el matcher no pondera la
+  fuerza de la evidencia.
+- **Vocabulario ampliado con datos:** de las 31 skills que devolvió el extractor en los
+  7 avisos, el vocabulario reconocía 15. Se sumaron solo términos inequívocos (RAG,
+  APIs, Kotlin, CRM, bases de datos, agentes de IA, visión por computadora, IA). En
+  una lista de skills, "Excel" suelto ahora cuenta (en texto libre sigue excluido
+  por ser un verbo en inglés). Los idiomas se reconocen pero no cuentan como skill.
 - **Los comentarios LaTeX del CV** (`% ADAPTAR`, `% PENDIENTE`) son notas de
   trabajo y el parser los descarta.
 - **El CV real no entra al repo.** Los tests usan `tests/fixtures/cv_sample.tex`.

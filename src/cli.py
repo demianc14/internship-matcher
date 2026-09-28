@@ -2,6 +2,7 @@
 
     python -m src.cli bullets [cv.tex]      bullets del CV con sus keywords
     python -m src.cli extract <jd.txt>      requisitos del JD (llama a Gemini, con caché)
+    python -m src.cli match <jd.txt> [cv]   veredicto + cobertura del CV frente al JD
 
 GEMINI_API_KEY y GEMINI_MODELO se leen del entorno o de .env en la raíz del repo.
 """
@@ -11,9 +12,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from src.cv_parser import parse_cv
-from src.jd_extractor import ExtractionError, extract_requirements
+from src.cv_parser import parse_backing, parse_cv
+from src.jd_extractor import ExtractionError, JDRequirements, extract_requirements
 from src.llm import CuotaAgotada, ErrorDelLLM, cliente_desde_env
+from src.matcher import JDMatch, load_fit_policy, match
 from src.vocabulary import load_vocabulary
 
 ROOT = Path(__file__).parent.parent
@@ -27,13 +29,11 @@ def cmd_bullets(args: list[str]) -> int:
     return 0
 
 
-def cmd_extract(args: list[str]) -> int:
-    if not args:
-        print("falta la ruta del JD", file=sys.stderr)
-        return 2
+def _extract(jd_path: str) -> JDRequirements | int:
+    """Requisitos del JD, o el código de salida si falló (con el error ya impreso)."""
     try:
         client = cliente_desde_env()
-        req = extract_requirements(Path(args[0]).read_text(encoding="utf-8"), client)
+        req = extract_requirements(Path(jd_path).read_text(encoding="utf-8"), client)
     except CuotaAgotada as e:
         print(f"sin cuota: {e}", file=sys.stderr)
         return 3
@@ -46,6 +46,16 @@ def cmd_extract(args: list[str]) -> int:
             print(f"--- salida cruda, intento {i} ---\n{raw}", file=sys.stderr)
         return 1
     print(f"{req.title}   [modelo: {client.modelo}]")
+    return req
+
+
+def cmd_extract(args: list[str]) -> int:
+    if not args:
+        print("falta la ruta del JD", file=sys.stderr)
+        return 2
+    req = _extract(args[0])
+    if isinstance(req, int):
+        return req
     print(f"  nivel: {req.seniority_signal}  ← {req.seniority_evidence!r}")
     print(f"  rol:   {req.role_family}  ← {req.role_evidence!r}")
     print(f"  hard skills: {', '.join(req.hard_skills) or '—'}")
@@ -54,7 +64,50 @@ def cmd_extract(args: list[str]) -> int:
     return 0
 
 
-COMMANDS = {"bullets": cmd_bullets, "extract": cmd_extract}
+def _items(values: list[str]) -> str:
+    return ", ".join(values) or "—"
+
+
+def print_match(m: JDMatch, top: int = 5) -> None:
+    print(f"\nVEREDICTO: {m.fit.verdict.upper()}")
+    for reason in m.fit.reasons:
+        print(f"  · {reason}")
+    n = len(m.requested)
+    print(f"\nSKILLS DEL AVISO ({n} reconocidas; {len(m.unrecognized)} fuera del vocabulario)")
+    print(f"  en tus bullets ({len(m.covered)}/{n}):        {_items(m.covered)}")
+    print(f"  en tu CV, sin bullet ({len(m.in_cv_not_in_bullets)}/{n}): "
+          f"{_items(m.in_cv_not_in_bullets)}")  # fmt: skip
+    print(f"  en formación ({len(m.in_training)}/{n}):          {_items(m.in_training)}")
+    print(f"  no están en tu CV ({len(m.gaps)}/{n}):     {_items(m.gaps)}")
+    print(f"  no reconocidas: {_items(m.unrecognized)}")
+    print(f"  cobertura en bullets {m.coverage:.0%} · respaldadas por el CV {m.backed:.0%}")
+
+    relevant = [r for r in m.bullets if r.match_score > 0 or r.missing_keywords][:top]
+    print(f"\nBULLETS MÁS RELEVANTES ({len(relevant)})")
+    for r in relevant:
+        print(f"  [{r.match_score:.0%}] {r.bullet.project}: {r.bullet.text[:110]}")
+        print(f"        demuestra: {_items(r.matched_keywords)}")
+        if r.missing_keywords:
+            print(f"        tu proyecto usa y el bullet no nombra: {_items(r.missing_keywords)}")
+    if m.gaps:
+        print("\nLo de 'no están en tu CV' no se sugiere agregar: solo si de verdad lo tienes.")
+
+
+def cmd_match(args: list[str]) -> int:
+    if not args:
+        print("falta la ruta del JD", file=sys.stderr)
+        return 2
+    cv = Path(args[1]) if len(args) > 1 else DEFAULT_CV
+    vocab = load_vocabulary()
+    bullets, backing = parse_cv(cv, vocab), parse_backing(cv, vocab)
+    req = _extract(args[0])
+    if isinstance(req, int):
+        return req
+    print_match(match(bullets, backing, req, vocab, load_fit_policy()))
+    return 0
+
+
+COMMANDS = {"bullets": cmd_bullets, "extract": cmd_extract, "match": cmd_match}
 
 
 def main(argv: list[str]) -> int:

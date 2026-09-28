@@ -6,6 +6,11 @@ entrada (`\\cventry`) bajo la que aparece, o la sección si no hay entrada. Los
 comentarios LaTeX (`% ADAPTAR`, `% PENDIENTE`…) son notas de trabajo del autor:
 se descartan, nunca llegan al texto del bullet.
 
+`parse_backing` lee lo que el CV respalda FUERA de los bullets: la línea de stack
+de cada `\\cventry{título}{stack}` y las filas `\\skillrow`. El matcher lo usa para
+distinguir "lo tienes pero no lo nombras en un bullet" de "no está en tu CV". Los
+ítems marcados "(en formación)" van aparte: no se sugiere presentarlos como dominados.
+
 Fail fast: un .tex sin \\begin{document} o sin ningún \\item no es un CV que este
 parser entienda, y lanza ValueError en vez de devolver una lista vacía.
 """
@@ -24,6 +29,14 @@ class Bullet(BaseModel):
     project: str
     text: str
     keywords: list[str]
+
+
+class CVBacking(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    projects: dict[str, list[str]]  # título de la entrada → keywords de su línea de stack
+    skills: list[str]  # keywords de las filas de habilidades (sin "en formación")
+    in_training: list[str]  # keywords de ítems marcados "(en formación)"
 
 
 # --- LaTeX → texto plano -----------------------------------------------------------
@@ -88,23 +101,62 @@ def brace_args(text: str, start: int, n: int) -> list[str]:
 # --- Parser ------------------------------------------------------------------------
 
 _CMD = re.compile(r"^\s*\\(cvsection|cventry|item)\b")
+_SKILLROW = re.compile(r"^\s*\\skillrow\b")
+_IN_TRAINING = re.compile(r"en formaci[oó]n", re.IGNORECASE)
 _BEGIN_ITEMIZE = re.compile(r"^\s*\\begin\{itemize\}")
 _END_ITEMIZE = re.compile(r"^\s*\\end\{itemize\}")
 
 
-def parse_cv(path: Path, vocab: Vocabulary) -> list[Bullet]:
+def _body(path: Path) -> list[str]:
     lines = path.read_text(encoding="utf-8").splitlines()
     try:
         body_start = next(i for i, ln in enumerate(lines) if r"\begin{document}" in ln)
     except StopIteration:
         raise ValueError(f"{path}: no tiene \\begin{{document}}") from None
+    return lines[body_start + 1 :]
+
+
+def _split_items(text: str) -> list[str]:
+    """'Python, SQL (vistas, triggers), Java' → ítems, sin cortar dentro de paréntesis."""
+    items, depth, current = [], 0, ""
+    for ch in text:
+        depth += (ch == "(") - (ch == ")")
+        if ch == "," and depth == 0:
+            items.append(current)
+            current = ""
+        else:
+            current += ch
+    return [i.strip() for i in [*items, current] if i.strip()]
+
+
+def parse_backing(path: Path, vocab: Vocabulary) -> CVBacking:
+    projects: dict[str, list[str]] = {}
+    skills: set[str] = set()
+    in_training: set[str] = set()
+    for line in _body(path):
+        code = strip_comment(line)
+        if (cmd := _CMD.match(code)) and cmd.group(1) == "cventry":
+            title, stack = brace_args(code, cmd.end(), 2)
+            projects[to_plain(title)] = vocab.extract(to_plain(stack))
+        elif m := _SKILLROW.match(code):
+            _, items = brace_args(code, m.end(), 2)
+            for item in _split_items(to_plain(items)):
+                target = in_training if _IN_TRAINING.search(item) else skills
+                target.update(vocab.extract(item))
+    return CVBacking(
+        projects=projects, skills=sorted(skills), in_training=sorted(in_training - skills)
+    )
+
+
+def parse_cv(path: Path, vocab: Vocabulary) -> list[Bullet]:
+    body = _body(path)
 
     raw: list[tuple[str, str]] = []  # (project, texto) antes de extraer keywords
     section: str | None = None
     entry: str | None = None
     item_open = False  # hay un \item abierto que puede seguir en la próxima línea
 
-    for line in lines[body_start + 1 :]:
+    for line in body:
         code = strip_comment(line)
         if not code.strip():
             continue

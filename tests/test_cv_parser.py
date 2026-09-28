@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cv_parser import Bullet, parse_cv, strip_comment, to_plain
+from src.cv_parser import Bullet, parse_backing, parse_cv, strip_comment, to_plain
 from src.vocabulary import load_vocabulary
 
 VOCAB = load_vocabulary()
@@ -69,7 +69,7 @@ def test_bullet_keywords_come_only_from_its_own_text() -> None:
     assert by_text["Diseñé un pipeline E"] == ["etl"]
     # El stack de la entrada ("Python, pandas, pytest") no se cuela en el bullet.
     assert "pytest" not in by_text["Diseñé un pipeline E"]
-    assert by_text["API REST con autenti"] == ["mysql", "rest api"]
+    assert by_text["API REST con autenti"] == ["apis", "mysql", "rest api"]
 
 
 def test_bullet_is_the_spec_model() -> None:
@@ -143,14 +143,14 @@ def test_vocabulary_extract(text: str, expected: list[str]) -> None:
 
 
 def test_vocabulary_expand_is_one_level() -> None:
-    assert VOCAB.expand(["mysql"]) == {"mysql", "sql"}
+    assert VOCAB.expand(["mysql"]) == {"mysql", "sql", "databases"}
     assert VOCAB.expand(["power automate"]) == {"power automate", "process automation", "low-code"}
 
 
 def test_vocabulary_canonical() -> None:
     assert VOCAB.canonical("Postgres") == "postgresql"
     assert VOCAB.canonical("  PySpark ") == "spark"
-    assert VOCAB.canonical("Kotlin") is None
+    assert VOCAB.canonical("Radford") is None
 
 
 def test_vocabulary_fails_fast_on_bad_config(tmp_path: Path) -> None:
@@ -161,3 +161,33 @@ def test_vocabulary_fails_fast_on_bad_config(tmp_path: Path) -> None:
     bad.write_text("keywords: {}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="no vacío"):
         load_vocabulary(bad)
+
+
+# --- Respaldo fuera de los bullets -------------------------------------------------
+
+
+def test_backing_reads_project_stacks_and_skill_rows() -> None:
+    backing = parse_backing(SAMPLE, VOCAB)
+    assert backing.projects == {
+        "Pasante de Datos": [],
+        "Pipeline de Calidad": ["pandas", "pytest", "python"],
+        "App de Eventos": ["java", "mysql", "spring boot"],
+    }
+    assert backing.skills == ["java", "python", "sql"]
+
+
+def test_backing_separates_skills_in_training() -> None:
+    assert parse_backing(SAMPLE, VOCAB).in_training == ["power bi"]
+
+
+def test_skill_row_items_split_outside_parentheses(tmp_path: Path) -> None:
+    tex = tmp_path / "cv.tex"
+    tex.write_text(
+        "\\begin{document}\n"
+        "\\skillrow{BD:}{MySQL (vistas, triggers), Power BI (en formación), Excel avanzado}\n"
+        "\\end{document}",
+        encoding="utf-8",
+    )
+    backing = parse_backing(tex, VOCAB)
+    assert backing.skills == ["excel", "mysql"]
+    assert backing.in_training == ["power bi"]

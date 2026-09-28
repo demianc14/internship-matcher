@@ -24,6 +24,7 @@ class Vocabulary:
     aliases: dict[str, list[str]]  # canónico → alias
     implies: dict[str, list[str]]  # canónico → canónicos que demuestra
     patterns: dict[str, Pattern[str]]
+    non_skills: frozenset[str] = frozenset()  # reconocidos pero no son skill (idiomas)
 
     def extract(self, text: str) -> list[str]:
         """Keywords canónicas presentes en `text`, ordenadas."""
@@ -36,6 +37,19 @@ class Vocabulary:
         for k in list(found):
             found.update(self.implies.get(k, []))
         return found
+
+    def canonicalize(self, item: str) -> list[str]:
+        """Un ítem de una LISTA de skills → canónicos.
+
+        Si el ítem es exactamente un canónico o un alias ("Excel", "Postgres"), vale
+        aunque en texto libre sea ambiguo: en una lista de skills, "Excel" es la
+        herramienta. Si no, se busca dentro del ítem ("Low-Code/No-Code" → low-code)."""
+        if (exact := self.canonical(item)) is not None:
+            return [exact]
+        key = item.strip().casefold()
+        exact_names = [k for k, aliases in self.aliases.items()
+                       if key == k or key in (a.casefold() for a in aliases)]  # fmt: skip
+        return exact_names if len(exact_names) == 1 else self.extract(item)
 
     def canonical(self, term: str) -> str | None:
         """'Postgres' → 'postgresql'. None si el término no está en el vocabulario."""
@@ -80,8 +94,13 @@ def load_vocabulary(path: Path = DEFAULT_PATH) -> Vocabulary:
             raise ValueError(f"{path}: implies.{key} usa términos fuera del vocabulario: {unknown}")
         implies[str(key)] = [str(t) for t in targets]
 
+    non_skills = data.get("non_skills") or []
+    if not isinstance(non_skills, list) or set(non_skills) - aliases.keys():
+        raise ValueError(f"{path}: non_skills debe listar términos del vocabulario: {non_skills}")
+
     return Vocabulary(
         aliases=aliases,
         implies=implies,
         patterns={k: _compile(v) for k, v in aliases.items()},
+        non_skills=frozenset(non_skills),
     )

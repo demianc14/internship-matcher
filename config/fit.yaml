@@ -1,0 +1,18 @@
+# Política de encaje: qué avisos vale la pena mirar, ANTES de puntuar skills.
+# Datos, no código: se ajusta sin tocar el matcher. Solo usa lo que el extractor
+# respalda con una cita literal del JD (role_family y seniority_signal).
+#
+# Veredictos: apta | revisar | no_apta. El score de skills nunca cambia el veredicto.
+
+# Familias de rol que descartan el aviso. non_technical: ventas, marketing, RR. HH.,
+# comunicación, dirección general. Era el falso "apta" del pipeline anterior.
+blocking_roles: [non_technical]
+
+# Veredicto por nivel exigido. Busco pasantía; junior (menos de 2 años de
+# experiencia) va a revisar porque muchos avisos junior aceptan estudiantes.
+seniority:
+  internship: apta
+  junior: revisar
+  undetermined: revisar
+  mid: no_apta
+  senior: no_apta
