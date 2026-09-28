@@ -69,9 +69,8 @@ class MatchResult(BaseModel):
    offline hechos; falta la corrida real (`pytest -m llm`).**
 3. `matcher.py`: depende de que los dos anteriores den datos limpios. Empezar con
    overlap de keywords (sets) antes de meter un segundo pase de LLM para reescritura.
-   **Capa determinística hecha (2026-09-28).** Pendiente: `suggested_rewrite` con LLM,
-   validado sin LLM (keywords ⊆ bullet ∪ respaldo del proyecto; números solo del bullet
-   original).
+   **Capa determinística hecha (2026-09-28). Reescritura hecha (2026-09-28)** en
+   `src/rewriter.py`, fuera del matcher para que este siga sin LLM.
 
 ## Reglas del pivot (para no reintroducir lo descartado)
 
@@ -143,5 +142,15 @@ class MatchResult(BaseModel):
 - **2026-09-28 — Vocabulario:** `canonicalize` para ítems de una lista de skills ("Excel"
   suelto vale ahí); `non_skills` (idiomas); términos nuevos solo inequívocos. La
   cobertura del vocabulario sobre las skills extraídas es una métrica a vigilar (era 15/31).
+- **2026-09-28 — Reescritura.** Solo avisos apta/revisar. Términos = implícitos (el
+  bullet los demuestra por implicación) + stack del proyecto sin nombrar, excluyendo lo
+  ya escrito en cualquier bullet; cada término va a UN bullet (el de mayor score; empate
+  ⇒ orden del CV); máximo 5 bullets por aviso; carencias y respaldo solo por fila de
+  habilidades nunca entran. Una llamada por aviso; el LLM recibe los términos como los
+  escribe el aviso. Validación sin LLM: contiene lo pedido, no agrega otras skills, no
+  pierde keywords, números ⊆ original, máximo +60 caracteres, sin nombres técnicos nuevos
+  (heurística). Un reintento solo de las rechazadas con el motivo; si falla de nuevo, sin
+  sugerencia y con motivo visible. Caché `rw-*.json` con modelo, intentos y motivos del
+  primer rechazo; lo del caché se revalida al leerlo. Salida en texto plano (no LaTeX).
 - **Pendiente:** fixtures `agents_booster.txt` y `movmo.txt` (Demian los pega después);
   jornada/carga horaria no está en `JDRequirements` (relevante para 4–6 h/día).

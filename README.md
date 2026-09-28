@@ -12,7 +12,7 @@ JD (.txt) ──jd_extractor (LLM)──► JDRequirements ─┘
 
 > **Estado:** hecho: `cv_parser`, vocabulario, `jd_extractor` (regresión 7/7 con
 > `gemini-3.5-flash-lite`, prompt v2) y la capa determinística del `matcher` con
-> `cli match`. Pendiente: reescritura de bullets con LLM (`suggested_rewrite`).
+> `cli match`, y la reescritura de bullets validada sin LLM (`match --rewrite`).
 
 ## Quickstart
 
@@ -24,6 +24,7 @@ python -m src.cli bullets tests/fixtures/cv_sample.tex
 cp .env.example .env                      # y pega tu GEMINI_API_KEY
 python -m src.cli extract data/jds/strategia.txt
 python -m src.cli match data/jds/strategia.txt   # veredicto + cobertura contra tu CV
+python -m src.cli match data/jds/strategia.txt --rewrite   # + reescrituras sugeridas
 pytest && ruff check . && mypy src tests  # offline
 pytest -m llm                             # regresión contra Gemini (usa caché)
 ```
@@ -36,7 +37,8 @@ pytest -m llm                             # regresión contra Gemini (usa caché
 | `src/cv_parser.py` | `.tex` → `list[Bullet(project, text, keywords)]` | no |
 | `src/llm.py` | protocolo `ClienteLLM` + `GeminiCliente` (única parte que habla con un proveedor) | sí |
 | `src/jd_extractor.py` | texto del JD → `JDRequirements` validado con Pydantic; recibe el cliente por inyección | vía `ClienteLLM` |
-| `src/matcher.py` | bullets + respaldo del CV × requisitos → `JDMatch` (veredicto, cobertura, `MatchResult` por bullet) con política en `config/fit.yaml` | no (la reescritura con LLM irá aparte) |
+| `src/matcher.py` | bullets + respaldo del CV × requisitos → `JDMatch` (veredicto, cobertura, `MatchResult` por bullet) con política en `config/fit.yaml` | no |
+| `src/rewriter.py` | `JDMatch` → reescrituras de bullets: selección y validación sin LLM, redacción vía `ClienteLLM` | solo la redacción |
 
 El matcher tiene una capa determinística (overlap de sets sobre el vocabulario)
 **antes** de cualquier llamada al LLM, así que se testea sin mockear la API.
@@ -126,6 +128,25 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   APIs, Kotlin, CRM, bases de datos, agentes de IA, visión por computadora, IA). En
   una lista de skills, "Excel" suelto ahora cuenta (en texto libre sigue excluido
   por ser un verbo en inglés). Los idiomas se reconocen pero no cuentan como skill.
+- **La reescritura solo hace visible lo que el CV ya respalda.** Agrega a un bullet
+  términos que ese bullet demuestra por implicación (Power Automate ⇒ "RPA",
+  "Low-Code/No-Code") o que usa el stack de su proyecto, escritos como los pone el
+  aviso, para que un ATS los encuentre literalmente. Nunca agrega carencias, y cada
+  término va a un solo bullet de todo el CV: a un ATS le basta encontrarlo una vez, y
+  sugerir "agrega Python" en 9 bullets era ruido (medido con el CV real).
+- **Cada reescritura se valida sin LLM** antes de mostrarse: contiene lo pedido, no
+  agrega otras skills, no pierde keywords, todo número está en el original, crece
+  como mucho 60 caracteres y no trae nombres técnicos nuevos. Esta última regla es
+  heurística: detecta MAYÚSCULAS, CamelCase y dígitos ("UiPath"); una herramienta
+  escrita en minúsculas y fuera del vocabulario podría pasar. Rechazada ⇒ un
+  reintento con el motivo; si vuelve a fallar se muestra el motivo y no se sugiere nada.
+- **Si una reescritura "suena bien" no es testeable.** Se verifica que sea válida; la
+  calidad de la redacción la juzga quien lee. Primera corrida real (StrategIA):
+  válida, pero en el segundo intento, y agrega los términos como un paréntesis
+  ("Power Automate (Low-Code/No-Code y RPA)") más que como prosa natural.
+- **Alcance real con mi CV:** de los 7 avisos, solo StrategIA produce una reescritura (un
+  bullet). AI Engineer no produce ninguna: lo que el CV respalda ya aparece escrito en
+  algún bullet. Los otros 5 no son aptos y no gastan llamadas.
 - **Los comentarios LaTeX del CV** (`% ADAPTAR`, `% PENDIENTE`) son notas de
   trabajo y el parser los descarta.
 - **El CV real no entra al repo.** Los tests usan `tests/fixtures/cv_sample.tex`.

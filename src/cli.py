@@ -2,7 +2,9 @@
 
     python -m src.cli bullets [cv.tex]      bullets del CV con sus keywords
     python -m src.cli extract <jd.txt>      requisitos del JD (llama a Gemini, con caché)
-    python -m src.cli match <jd.txt> [cv]   veredicto + cobertura del CV frente al JD
+    python -m src.cli match <jd.txt> [cv] [--rewrite]
+                                            veredicto + cobertura del CV frente al JD;
+                                            --rewrite sugiere reescrituras (llama a Gemini)
 
 GEMINI_API_KEY y GEMINI_MODELO se leen del entorno o de .env en la raíz del repo.
 """
@@ -16,6 +18,7 @@ from src.cv_parser import parse_backing, parse_cv
 from src.jd_extractor import ExtractionError, JDRequirements, extract_requirements
 from src.llm import CuotaAgotada, ErrorDelLLM, cliente_desde_env
 from src.matcher import JDMatch, load_fit_policy, match
+from src.rewriter import RewriteOutcome, rewrite
 from src.vocabulary import load_vocabulary
 
 ROOT = Path(__file__).parent.parent
@@ -93,7 +96,24 @@ def print_match(m: JDMatch, top: int = 5) -> None:
         print("\nLo de 'no están en tu CV' no se sugiere agregar: solo si de verdad lo tienes.")
 
 
+def print_rewrites(outcomes: list[RewriteOutcome]) -> None:
+    if not outcomes:
+        print("\nREESCRITURAS: ninguna. El aviso no es apto, o todo lo que tu CV respalda ya")
+        print("  aparece literalmente en algún bullet.")
+        return
+    print(f"\nREESCRITURAS ({len(outcomes)} bullet(s); cada término va a un solo bullet)")
+    for o in outcomes:
+        print(f"\n  [{o.target.bullet.project}] agregar: {_items(o.target.add_as)}")
+        print(f"    original:  {o.target.bullet.text}")
+        if o.suggested:
+            print(f"    sugerido:  {o.suggested}")
+        else:
+            print(f"    sin sugerencia válida: {'; '.join(o.rejected_reasons)}")
+
+
 def cmd_match(args: list[str]) -> int:
+    do_rewrite = "--rewrite" in args
+    args = [a for a in args if a != "--rewrite"]
     if not args:
         print("falta la ruta del JD", file=sys.stderr)
         return 2
@@ -103,7 +123,19 @@ def cmd_match(args: list[str]) -> int:
     req = _extract(args[0])
     if isinstance(req, int):
         return req
-    print_match(match(bullets, backing, req, vocab, load_fit_policy()))
+    result = match(bullets, backing, req, vocab, load_fit_policy())
+    print_match(result)
+    if not do_rewrite:
+        return 0
+    try:
+        outcomes = rewrite(result, req, vocab, cliente_desde_env())
+    except CuotaAgotada as e:
+        print(f"\nsin cuota para reescribir: {e}", file=sys.stderr)
+        return 3
+    except ErrorDelLLM as e:
+        print(f"\nerror del proveedor al reescribir: {e}", file=sys.stderr)
+        return 1
+    print_rewrites(outcomes)
     return 0
 
 

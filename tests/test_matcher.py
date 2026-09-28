@@ -121,8 +121,8 @@ def test_missing_keywords_only_come_from_that_bullets_own_project() -> None:
     assert bullet_result(m, "Automaticé").missing_keywords == []
 
 
-def test_skill_row_backs_a_skill_without_a_project() -> None:
-    m = run(["Java"])  # "Java 17" en el stack no es "java" suelto: lo respalda la fila
+def test_skill_backed_outside_bullets_is_in_cv_not_in_bullets() -> None:
+    m = run(["Java"])  # respaldado por el stack de App de Eventos y por la fila
     assert m.in_cv_not_in_bullets == ["java"]
 
 
