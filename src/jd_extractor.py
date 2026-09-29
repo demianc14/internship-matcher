@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from src.llm import ClienteLLM
 
-PROMPT_VERSION = "2"  # 2: junior = menos de 2 años (antes había un hueco entre 1 y 2)
+PROMPT_VERSION = "3"  # 2: junior = menos de 2 años; 3: modalidad y jornada
 CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
 
 
@@ -37,6 +37,9 @@ Seniority = Literal["internship", "junior", "mid", "senior", "undetermined"]
 RoleFamily = Literal[
     "data", "software", "ml_ai", "automation", "it_ops", "non_technical",
 ]  # fmt: skip
+Modality = Literal["remote", "hybrid", "onsite", "undetermined"]
+Workload = Literal["part_time", "full_time", "undetermined"]
+FULL_TIME_HOURS = 35  # desde aquí, horas por semana ⇒ full_time
 
 
 class JDRequirements(BaseModel):
@@ -49,6 +52,11 @@ class JDRequirements(BaseModel):
     seniority_evidence: str
     role_family: RoleFamily
     role_evidence: str
+    modality: Modality
+    modality_evidence: str
+    workload: Workload
+    hours_per_week: float | None
+    workload_evidence: str
     ats_keywords: list[str]
 
 
@@ -97,10 +105,23 @@ non_technical.
   legal, operaciones de negocio o dirección general.
 Si el cargo mezcla dos familias técnicas, elige la que ocupa más responsabilidades.
 
-seniority_evidence y role_evidence: copia LITERAL de un fragmento del aviso (de 3 a
-30 palabras) que justifique la categoría, carácter por carácter, sin corregir
-erratas, sin traducir y sin puntos suspensivos. Si seniority_signal es
-undetermined, seniority_evidence es "".
+modality: dónde se trabaja.
+- remote: remoto, 100% remoto, remote, virtual, teletrabajo.
+- hybrid: híbrido, hybrid, algunos días en oficina.
+- onsite: presencial, en oficina, onsite.
+- undetermined: el aviso no lo dice. Una ciudad o país sola NO indica presencialidad.
+
+workload y hours_per_week: la dedicación que pide el cargo.
+- part_time: medio tiempo, part-time, o menos de 35 horas por semana.
+- full_time: tiempo completo, full-time, o 35 horas por semana o más.
+- undetermined: el aviso no lo dice.
+hours_per_week: horas por semana si el aviso da una cifra ("6 horas diarias, de
+lunes a viernes" = 30; si da un rango, el máximo). null si no da ninguna cifra.
+
+seniority_evidence, role_evidence, modality_evidence y workload_evidence: copia
+LITERAL de un fragmento del aviso (de 3 a 30 palabras) que justifique la categoría,
+carácter por carácter, sin corregir erratas, sin traducir y sin puntos suspensivos.
+Si la categoría es undetermined, su evidencia es "".
 
 ats_keywords: de 5 a 15 términos que un sistema ATS buscaría en un CV para este
 aviso, copiados tal como aparecen en el aviso (título del cargo, herramientas,
@@ -116,17 +137,34 @@ def _normalize(text: str) -> str:
 
 
 def check_evidence(req: JDRequirements, jd_text: str) -> None:
-    """Cada evidencia debe ser una cita literal del JD (salvo espacios y mayúsculas)."""
+    """Cada evidencia es una cita literal del JD (salvo espacios y mayúsculas), y las
+    horas son coherentes con su cita y con la categoría de jornada."""
     haystack = _normalize(jd_text)
     problems: list[str] = []
-    for field in ("seniority_evidence", "role_evidence"):
+    pairs = [
+        ("seniority_evidence", req.seniority_signal),
+        ("role_evidence", req.role_family),
+        ("modality_evidence", req.modality),
+        ("workload_evidence", req.workload),
+    ]
+    for field, value in pairs:
         quote = _normalize(getattr(req, field))
-        if field == "seniority_evidence" and req.seniority_signal == "undetermined":
-            continue
         if not quote:
-            problems.append(f"{field} vacía")
-        elif quote not in haystack:
+            if value != "undetermined":
+                problems.append(f"{field} vacía")
+        elif quote not in haystack:  # también si la categoría es undetermined
             problems.append(f"{field} no aparece en el JD: {getattr(req, field)!r}")
+
+    hours = req.hours_per_week
+    if hours is not None:
+        if req.workload == "undetermined":
+            problems.append("hours_per_week sin categoría de jornada")
+        elif not re.search(r"\d", req.workload_evidence):
+            problems.append("hours_per_week sin una cifra en workload_evidence")
+        elif hours <= 0 or hours > 80:
+            problems.append(f"hours_per_week fuera de rango: {hours}")
+        elif (req.workload == "full_time") != (hours >= FULL_TIME_HOURS):
+            problems.append(f"workload {req.workload} contradice {hours} h/semana")
     if problems:
         raise ExtractionError("; ".join(problems))
 

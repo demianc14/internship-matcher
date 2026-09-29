@@ -1,0 +1,44 @@
+CE20261298 - Pasante — AI Systems & Data Engineer
+
+Empresa del sector tecnológico se encuentra en la búsqueda de un/a Pasante – AI Systems & Data Engineer para apoyar en el análisis, implementación y mejora de sistemas de inteligencia artificial, datos y automatización.
+📌 Funciones:
+
+* 
+Análisis y mejora continua de agentes de IA en producción, incluyendo prompts, flujos y lógica por cliente.
+* 
+Diseño e implementación de una capa de datos común entre clientes: esquemas y pipelines ETL.
+* 
+Apoyo en integraciones con herramientas como GoHighLevel, n8n, WhatsApp Business API, VAPI y Twilio.
+* 
+Mantenimiento del dashboard de Revenue Intelligence con KPIs por cliente.
+* 
+Soporte técnico de primera línea en automatizaciones y flujos.
+* 
+Documentación de arquitectura, procesos y soluciones replicables.
+
+
+🎓 Perfil requerido:
+Estudiantes de últimos semestres de:
+
+* Ingeniería en Computación.
+* 
+
+
+📌 Requisitos:
+
+* 
+Conocimientos de Python y SQL.
+* 
+Conocimientos de APIs REST y arquitectura de sistemas.
+* 
+Interés o conocimientos en modelos de lenguaje (LLMs) y prompt engineering.
+* 
+Capacidad analítica, organización y atención al detalle.
+* 
+Interés en automatización, inteligencia artificial y manejo de datos.
+
+
+📍 Modalidad: Virtual | Part time.
+📅 Oferta abierta hasta: 22/09/2026
+
+Dame las modificaciones del .tex para esta oferta laboral

@@ -40,6 +40,11 @@ def jd(hard: list[str], ats: list[str] | None = None, **overrides: Any) -> JDReq
         "seniority_evidence": "pasantía",
         "role_family": "data",
         "role_evidence": "análisis de datos",
+        "modality": "undetermined",
+        "modality_evidence": "",
+        "workload": "undetermined",
+        "hours_per_week": None,
+        "workload_evidence": "",
         "ats_keywords": ats or [],
     }
     return JDRequirements.model_validate({**base, **overrides})
@@ -211,18 +216,28 @@ def test_full_skill_coverage_never_rescues_a_blocked_role() -> None:
 # --- Política como datos -----------------------------------------------------------
 
 
+_REST = (
+    "modality: {remote: apta, hybrid: apta, onsite: revisar, undetermined: apta}\n"
+    "workload: {max_hours_per_week: 30, over_max: revisar, full_time: revisar}\n"
+)
+_LEVELS = (
+    "seniority: {internship: apta, junior: apta, mid: apta, senior: apta, undetermined: apta}\n"
+)
+
+
 @pytest.mark.parametrize(
     ("yaml_text", "match_text"),
     [
-        ("blocking_roles: [non_technical]\nseniority: {internship: apta}\n", "sin veredicto"),
-        ("blocking_roles: [sales]\nseniority: {}\n", "blocking_roles"),
-        (
-            "blocking_roles: []\nseniority: {internship: quizás, junior: apta, mid: apta,"
-            " senior: apta, undetermined: apta}\n",
-            "seniority",
-        ),
+        ("blocking_roles: [non_technical]\nseniority: {internship: apta}\n" + _REST,
+         "niveles sin veredicto"),
+        ("blocking_roles: [sales]\n" + _LEVELS + _REST, "blocking_roles"),
+        ("blocking_roles: []\n" + _LEVELS.replace("internship: apta", "internship: quizás")
+         + _REST, "seniority"),
+        ("blocking_roles: []\n" + _LEVELS + "modality: {remote: apta}\n"
+         + _REST.split("\n")[1] + "\n", "modalidades sin veredicto"),
+        ("blocking_roles: []\n" + _LEVELS + _REST.split("\n")[0] + "\n", "workload"),
     ],
-)
+)  # fmt: skip
 def test_fit_policy_fails_fast_on_bad_config(
     tmp_path: Path, yaml_text: str, match_text: str
 ) -> None:
@@ -230,3 +245,36 @@ def test_fit_policy_fails_fast_on_bad_config(
     bad.write_text(yaml_text, encoding="utf-8")
     with pytest.raises(ValueError, match=match_text):
         load_fit_policy(bad)
+
+
+# --- Modalidad y jornada -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("overrides", "verdict", "reason"),
+    [
+        ({"modality": "remote", "modality_evidence": "remoto"}, "apta", "modalidad remote"),
+        ({"modality": "hybrid", "modality_evidence": "híbrido"}, "apta", "modalidad hybrid"),
+        ({"modality": "onsite", "modality_evidence": "presencial"}, "revisar", "onsite ⇒ revisar"),
+        ({}, "apta", "modalidad no indicada (se avisa)"),
+        ({"workload": "part_time", "hours_per_week": 30.0, "workload_evidence": "6 horas"},
+         "apta", "30 h/semana (máximo 30)"),
+        ({"workload": "part_time", "hours_per_week": 32.0, "workload_evidence": "32 h"},
+         "revisar", "32 h/semana"),
+        ({"workload": "full_time", "workload_evidence": "full time"},
+         "revisar", "tiempo completo, sin cifra"),
+        ({"workload": "part_time", "workload_evidence": "part time"},
+         "apta", "medio tiempo, sin cifra"),
+        ({}, "apta", "jornada no indicada (se avisa)"),
+    ],
+)  # fmt: skip
+def test_modality_and_workload_policy(overrides: dict[str, Any], verdict: str, reason: str) -> None:
+    fit = assess_fit(jd([], **overrides), POLICY)
+    assert fit.verdict == verdict
+    assert any(reason in r for r in fit.reasons), fit.reasons
+
+
+def test_most_restrictive_verdict_wins() -> None:
+    req = jd([], seniority_signal="junior", modality="onsite", modality_evidence="presencial",
+             role_family="non_technical", role_evidence="ventas")  # fmt: skip
+    assert assess_fit(req, POLICY).verdict == "no_apta"

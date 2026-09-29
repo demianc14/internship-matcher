@@ -14,9 +14,10 @@ from typing import Any, Protocol
 MODELO_POR_DEFECTO = "gemini-3.5-flash-lite"
 """El que menos cuota gratuita consume. Los modelos grandes agotan el límite diario."""
 
-TIMEOUT_MS = 60_000
-"""Un JD largo tarda más que un mensaje de chat, pero una llamada colgada no debe
-dejar la CLI esperando indefinidamente."""
+TIMEOUT_MS = 120_000
+"""Con 60 s hubo 2 timeouts en ~14 llamadas (las normales tardan ~8-10 s; una corrida
+de extracción + reescritura tardó 80 s en total). Cada timeout gasta cuota sin
+resultado. 120 s sigue acotando la espera."""
 
 INTENTOS_HTTP = 1
 """Sin reintentos del SDK. Su backoff ante un 429 solo gasta tiempo (y, si el

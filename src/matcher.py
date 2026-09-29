@@ -2,10 +2,11 @@
 
 Dos preguntas separadas, a propósito:
 
-1. ¿Vale la pena mirar el aviso? (`assess_fit`) Solo con role_family y
-   seniority_signal, que el extractor respalda con citas literales, contra la
-   política de config/fit.yaml. El score de skills nunca cambia este veredicto:
-   un Account Executive que pide Excel no se vuelve apto por pedir Excel.
+1. ¿Vale la pena mirar el aviso? (`assess_fit`) Con rol, nivel, modalidad y
+   jornada, que el extractor respalda con citas literales, contra la política de
+   config/fit.yaml; gana el veredicto más restrictivo. El score de skills nunca
+   cambia este veredicto: un Account Executive que pide Excel no se vuelve apto
+   por pedir Excel.
 
 2. ¿Qué parte del aviso cubre el CV? Las skills del JD (hard_skills + ats_keywords)
    se pasan a canónicos del vocabulario, y cada una cae en exactamente una de:
@@ -34,7 +35,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict
 
 from src.cv_parser import Bullet, CVBacking
-from src.jd_extractor import JDRequirements, RoleFamily, Seniority
+from src.jd_extractor import JDRequirements, Modality, RoleFamily, Seniority
 from src.vocabulary import Vocabulary
 
 DEFAULT_FIT_PATH = Path(__file__).parent.parent / "config" / "fit.yaml"
@@ -47,9 +48,17 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class WorkloadPolicy(_Model):
+    max_hours_per_week: float
+    over_max: Verdict
+    full_time: Verdict
+
+
 class FitPolicy(_Model):
     blocking_roles: list[RoleFamily]
     seniority: dict[Seniority, Verdict]
+    modality: dict[Modality, Verdict]
+    workload: WorkloadPolicy
 
 
 class Fit(_Model):
@@ -84,19 +93,42 @@ def load_fit_policy(path: Path = DEFAULT_FIT_PATH) -> FitPolicy:
     policy = FitPolicy.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
     if missing := set(get_args(Seniority)) - policy.seniority.keys():
         raise ValueError(f"{path}: niveles sin veredicto: {sorted(missing)}")
+    if missing := set(get_args(Modality)) - policy.modality.keys():
+        raise ValueError(f"{path}: modalidades sin veredicto: {sorted(missing)}")
     return policy
+
+
+def _quote(evidence: str) -> str:
+    return f" ← {evidence!r}" if evidence else ""
+
+
+def _workload_verdict(req: JDRequirements, policy: WorkloadPolicy) -> tuple[Verdict, str]:
+    hours = req.hours_per_week
+    if hours is not None:
+        over = hours > policy.max_hours_per_week
+        verdict: Verdict = policy.over_max if over else "apta"
+        return verdict, f"{hours:g} h/semana (máximo {policy.max_hours_per_week:g})"
+    if req.workload == "full_time":
+        return policy.full_time, "tiempo completo, sin cifra"
+    if req.workload == "part_time":
+        return "apta", "medio tiempo, sin cifra"
+    return "apta", "jornada no indicada (se avisa)"
 
 
 def assess_fit(req: JDRequirements, policy: FitPolicy) -> Fit:
     by_level = policy.seniority[req.seniority_signal]
     by_role: Verdict = "no_apta" if req.role_family in policy.blocking_roles else "apta"
-    verdict = max(by_level, by_role, key=_SEVERITY.__getitem__)
-    level_quote = f" ← {req.seniority_evidence!r}" if req.seniority_evidence else ""
+    by_modality = policy.modality[req.modality]
+    by_workload, workload_text = _workload_verdict(req, policy.workload)
+    modality_text = "no indicada (se avisa)" if req.modality == "undetermined" else req.modality
+    verdict = max(by_level, by_role, by_modality, by_workload, key=_SEVERITY.__getitem__)
     return Fit(
         verdict=verdict,
         reasons=[
-            f"nivel {req.seniority_signal} ⇒ {by_level}{level_quote}",
-            f"rol {req.role_family} ⇒ {by_role} ← {req.role_evidence!r}",
+            f"nivel {req.seniority_signal} ⇒ {by_level}{_quote(req.seniority_evidence)}",
+            f"rol {req.role_family} ⇒ {by_role}{_quote(req.role_evidence)}",
+            f"modalidad {modality_text} ⇒ {by_modality}{_quote(req.modality_evidence)}",
+            f"jornada {workload_text} ⇒ {by_workload}{_quote(req.workload_evidence)}",
         ],
     )
 

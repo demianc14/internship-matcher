@@ -1,6 +1,6 @@
-# Política de encaje: qué avisos vale la pena mirar, ANTES de puntuar skills.
-# Datos, no código: se ajusta sin tocar el matcher. Solo usa lo que el extractor
-# respalda con una cita literal del JD (role_family y seniority_signal).
+# Política de encaje: qué avisos vale la pena mirar, ANTES de puntuar skills. Gana
+# el veredicto más restrictivo. Datos, no código: se ajusta sin tocar el matcher.
+# Solo usa lo que el extractor respalda con una cita literal del JD.
 #
 # Veredictos: apta | revisar | no_apta. El score de skills nunca cambia el veredicto.
 
@@ -16,3 +16,17 @@ seniority:
   undetermined: revisar
   mid: no_apta
   senior: no_apta
+
+# Modalidad. Prioridad real: híbrido en Quito; ideal remoto. "undetermined" no
+# descarta (StrategIA, por ejemplo, no lo dice) pero queda anotado en los motivos.
+modality:
+  remote: apta
+  hybrid: apta
+  onsite: revisar
+  undetermined: apta
+
+# Jornada. Busco 4–6 h diarias ⇒ hasta 30 h por semana.
+workload:
+  max_hours_per_week: 30
+  over_max: revisar       # da una cifra mayor al máximo
+  full_time: revisar      # tiempo completo sin cifra

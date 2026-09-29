@@ -42,6 +42,11 @@ def req(**overrides: Any) -> JDRequirements:
         "seniority_evidence": "Buscamos estudiante de últimos semestres",
         "role_family": "automation",
         "role_evidence": "procesos automatizados con herramientas de RPA",
+        "modality": "undetermined",
+        "modality_evidence": "",
+        "workload": "undetermined",
+        "hours_per_week": None,
+        "workload_evidence": "",
         "ats_keywords": ["RPA", "automatización"],
     }
     return JDRequirements.model_validate({**base, **overrides})
@@ -110,11 +115,49 @@ def test_empty_role_evidence_fails() -> None:
         check_evidence(req(role_evidence="  "), JD)
 
 
+JD_WORK = JD + "\nModalidad: 100% remoto. Disponibilidad de 6 horas diarias, de lunes a viernes."
+WORK = {
+    "modality": "remote", "modality_evidence": "100% remoto", "workload": "part_time",
+    "hours_per_week": 30.0, "workload_evidence": "6 horas diarias, de lunes a viernes",
+}  # fmt: skip
+
+
+def test_modality_and_workload_with_literal_evidence_pass() -> None:
+    check_evidence(req(**WORK), JD_WORK)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "problem"),
+    [
+        ({"modality_evidence": "trabajo remoto total"}, "modality_evidence no aparece"),
+        ({"modality_evidence": ""}, "modality_evidence vacía"),
+        ({"workload": "undetermined", "workload_evidence": ""}, "sin categoría de jornada"),
+        ({"workload_evidence": "de lunes a viernes"}, "sin una cifra"),
+        ({"hours_per_week": 0.0}, "fuera de rango"),
+        ({"workload": "full_time"}, "contradice"),
+        ({"hours_per_week": 40.0}, "contradice"),  # 40 h no es part_time
+    ],
+)  # fmt: skip
+def test_workload_inconsistencies_fail_fast(overrides: dict[str, Any], problem: str) -> None:
+    with pytest.raises(ExtractionError, match=problem):
+        check_evidence(req(**{**WORK, **overrides}), JD_WORK)
+
+
+def test_undetermined_with_invented_evidence_still_fails() -> None:
+    """Antes, una cita de nivel con 'undetermined' no se verificaba."""
+    with pytest.raises(ExtractionError, match="seniority_evidence no aparece"):
+        check_evidence(req(seniority_signal="undetermined", seniority_evidence="inventada"), JD)
+
+
 def test_categories_are_closed() -> None:
     with pytest.raises(ValueError):
         req(seniority_signal="entry")
     with pytest.raises(ValueError):
         req(role_family="sales")
+    with pytest.raises(ValueError):
+        req(modality="virtual")
+    with pytest.raises(ValueError):
+        req(workload="contract")
 
 
 # --- Respuesta del LLM (cliente falso) ---------------------------------------------
@@ -220,7 +263,21 @@ REGRESSION: list[tuple[str, set[str], set[str]]] = [
     # "1.5+ years": junior. Con prompt v1 este salió junior y el de arriba mid.
     ("regresion/ai_engineer_full_time.txt", {"junior"}, {"ml_ai", "software"}),
     ("strategia.txt", {"internship"}, {"automation", "ml_ai"}),
+    ("agents_booster.txt", {"internship"}, {"ml_ai", "software", "automation"}),
+    ("movmo.txt", {"internship"}, {"ml_ai", "data", "automation"}),
 ]  # fmt: skip
+
+
+# Modalidad y jornada: solo donde el aviso es explícito (None = no se exige nada).
+SCHEDULE: dict[str, tuple[set[str] | None, set[str] | None, float | None]] = {
+    "strategia.txt": ({"undetermined"}, {"undetermined"}, None),
+    "agents_booster.txt": ({"remote"}, {"part_time"}, 30.0),  # "100% remoto", "6 horas diarias"
+    "movmo.txt": ({"remote"}, {"part_time"}, None),  # "Modalidad: Virtual | Part time"
+    "regresion/social_comms.txt": ({"remote"}, {"part_time"}, 20.0),  # "10-20 hrs/week"
+    "regresion/software_engineer_jvm.txt": ({"hybrid"}, None, None),  # "Hybrid working"
+    "regresion/ai_engineer_full_time.txt": (None, {"full_time"}, None),  # "Full time"
+    "regresion/account_executive_smb.txt": ({"remote"}, None, None),  # "Remote-United Kingdom"
+}
 
 
 @pytest.mark.llm
@@ -239,3 +296,10 @@ def test_regression_jds(name: str, levels: set[str], families: set[str]) -> None
     where = f"[{client.modelo}]"
     assert r.seniority_signal in levels, f"{where} {r.seniority_signal} ← {r.seniority_evidence!r}"
     assert r.role_family in families, f"{where} {r.role_family} ← {r.role_evidence!r}"
+    modalities, workloads, hours = SCHEDULE.get(name, (None, None, None))
+    if modalities is not None:
+        assert r.modality in modalities, f"{where} {r.modality} ← {r.modality_evidence!r}"
+    if workloads is not None:
+        assert r.workload in workloads, f"{where} {r.workload} ← {r.workload_evidence!r}"
+    if hours is not None:
+        assert r.hours_per_week == hours, f"{where} {r.hours_per_week} ← {r.workload_evidence!r}"

@@ -39,6 +39,8 @@ def jd(hard: list[str], **overrides: Any) -> JDRequirements:
         "title": "Pasante de Automatización", "hard_skills": hard, "soft_requirements": [],
         "seniority_signal": "internship", "seniority_evidence": "pasantía",
         "role_family": "automation", "role_evidence": "RPA", "ats_keywords": [],
+        "modality": "undetermined", "modality_evidence": "", "workload": "undetermined",
+        "hours_per_week": None, "workload_evidence": "",
     }  # fmt: skip
     return JDRequirements.model_validate({**base, **overrides})
 
@@ -90,6 +92,23 @@ def test_each_term_goes_to_a_single_bullet(tmp_path: Path) -> None:
     )
     targets = targets_for(["pytest", "pandas"], cv=cv)
     assert [(t.bullet.text, t.add) for t in targets] == [("Validé datos con pandas.", ["pytest"])]
+
+
+def test_bullet_that_demonstrates_the_term_beats_one_that_only_shares_the_stack(
+    tmp_path: Path,
+) -> None:
+    """SQL va al bullet de procedimientos almacenados, no al de mayor score del proyecto."""
+    cv = tmp_path / "cv.tex"
+    cv.write_text(
+        "\\begin{document}\n\\cvsection{Proyectos}\n\\cventry{App}{Flask, MySQL}\n"
+        "\\begin{itemize}\n\\item Implementé login con Flask y pandas.\n"
+        "\\item Diseñé procedimientos almacenados.\n\\end{itemize}\n\\end{document}",
+        encoding="utf-8",
+    )
+    targets = targets_for(["SQL", "pandas", "Flask"], cv=cv)
+    assert [(t.bullet.text, t.add) for t in targets] == [
+        ("Diseñé procedimientos almacenados.", ["sql"])
+    ]
 
 
 def test_skill_backed_only_by_a_skill_row_has_no_home(tmp_path: Path) -> None:

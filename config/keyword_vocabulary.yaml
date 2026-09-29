@@ -70,9 +70,18 @@ keywords:
                        automatizacion de procesos, procesos automatizados, rpa,
                        robotic process automation, robótica de procesos,
                        robotica de procesos]
+  # "automatizaciones" suelto NO es alias: es una palabra común, no una skill. Como
+  # alias, la reescritura lo tomó como término a insertar y produjo "flujos con
+  # Automatizaciones" en un bullet (Agents Booster, 2026-09-28).
   low-code: [low-code, low code, lowcode, no-code, no code]
   power automate: [power automate, microsoft power automate]
   google apps script: [google apps script, apps script]
+  # Plataformas de automatización/integración que piden avisos de agentes de IA.
+  n8n: [n8n]
+  gohighlevel: [gohighlevel, go high level, highlevel]
+  twilio: [twilio]
+  vapi: [vapi]
+  whatsapp business api: [whatsapp business api, whatsapp business, whatsapp api]
 
   # Backend / infra
   fastapi: [fastapi]
@@ -86,6 +95,9 @@ keywords:
               esquema relacional]
   postgresql: [postgresql, postgres]
   mysql: [mysql]
+  # Se escriben en SQL: "procedimientos almacenados" en un bullet demuestra SQL.
+  stored procedures: [stored procedures, stored procedure, procedimientos almacenados,
+                      procedimiento almacenado]
   mongodb: [mongodb]
   docker: [docker]
   kubernetes: [kubernetes, k8s]
@@ -132,5 +144,6 @@ implies:
   google apps script: [process automation, javascript]
   mysql: [sql, databases]
   postgresql: [sql, databases]
+  stored procedures: [sql, databases]
   rest api: [apis]
   spring boot: [java]

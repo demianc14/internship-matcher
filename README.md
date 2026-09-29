@@ -10,9 +10,10 @@ Base CV.tex ──cv_parser──► list[Bullet] ─┐
 JD (.txt) ──jd_extractor (LLM)──► JDRequirements ─┘
 ```
 
-> **Estado:** hecho: `cv_parser`, vocabulario, `jd_extractor` (regresión 7/7 con
-> `gemini-3.5-flash-lite`, prompt v2) y la capa determinística del `matcher` con
-> `cli match`, y la reescritura de bullets validada sin LLM (`match --rewrite`).
+> **Estado:** hecho: `cv_parser`, vocabulario, `jd_extractor` (nivel, rol, modalidad
+> y jornada con cita literal; regresión 10/10 con `gemini-3.5-flash-lite`, prompt v3),
+> el `matcher` determinístico con `cli match` y la reescritura de bullets validada sin
+> LLM (`match --rewrite`).
 
 ## Quickstart
 
@@ -102,8 +103,10 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   modelo salieron** (campo `model` del caché, o `[modelo]` en la CLI y en los
   mensajes de fallo). Que un test pase con un modelo no dice nada del otro.
 - **Veredicto y score son independientes.** El veredicto (`apta`/`revisar`/`no_apta`)
-  sale solo de `role_family` y el nivel, contra `config/fit.yaml`: rol no técnico,
-  mid o senior ⇒ no apta; junior o nivel indeterminado ⇒ revisar. Ninguna cobertura
+  sale de rol, nivel, modalidad y jornada, contra `config/fit.yaml`, y gana el más
+  restrictivo: rol no técnico, mid o senior ⇒ no apta; junior o nivel indeterminado,
+  presencial, más de 30 h/semana o tiempo completo ⇒ revisar. Una modalidad o
+  jornada no indicada no descarta, pero se avisa. Ninguna cobertura
   de skills rescata un rol bloqueado. Ejemplo: Social Comms tiene 100 % de cobertura
   porque pide una sola skill que tengo (LLM), y sigue siendo no apta.
 - **Cuatro categorías por skill, sin inventar.** Cada skill del aviso cae en una sola:
@@ -116,6 +119,11 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   Se agregó `matched_keywords` a `MatchResult` (no está en el spec): sin ese campo, un
   bullet con Power Automate marcaba 22 % sin decir por qué (lo explica la implicación
   a "process automation" y "low-code").
+- **Una herramienta que el vocabulario no conoce no cuenta como carencia.** Se
+  reporta como "no reconocida", y la cobertura la ignora. CE20261298 (Movmo) daba
+  "100 % respaldado" mientras pedía n8n, Twilio, VAPI, GoHighLevel y WhatsApp
+  Business API: se agregaron al vocabulario. Revisar siempre la línea de "no
+  reconocidas" antes de creerle al porcentaje.
 - **Cobertura con pocas skills engaña.** El porcentaje se muestra siempre junto con
   cuántas skills reconoció el aviso ("1/1" no es "7/9"). Los avisos no técnicos
   reconocen pocas: la mayoría de sus términos (ventas, compensaciones) están fuera
@@ -144,9 +152,17 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   calidad de la redacción la juzga quien lee. Primera corrida real (StrategIA):
   válida, pero en el segundo intento, y agrega los términos como un paréntesis
   ("Power Automate (Low-Code/No-Code y RPA)") más que como prosa natural.
-- **Alcance real con mi CV:** de los 7 avisos, solo StrategIA produce una reescritura (un
-  bullet). AI Engineer no produce ninguna: lo que el CV respalda ya aparece escrito en
-  algún bullet. Los otros 5 no son aptos y no gastan llamadas.
+- **Caso real que la validación no atrapó.** Con "automatizaciones" como alias de
+  automatización de procesos, la reescritura de Agents Booster produjo "…diseñando e
+  implementando flujos con Automatizaciones y un flujo de validación…": cumplía todas
+  las reglas y era mala (torpe, y agregaba unos "flujos" que el original no tenía).
+  Se quitó el alias. Un alias debe ser un término que un ATS buscaría, no una palabra
+  común; y toda reescritura se lee antes de pegarla en el CV.
+- **Alcance real con mi CV:** de los 9 avisos, 2 producen una reescritura de un
+  bullet cada uno. StrategIA agrega "Low-Code" y "RPA" al bullet de Power Automate, y
+  Movmo agrega "SQL" al bullet de procedimientos almacenados. Agents Booster y AI
+  Engineer no producen ninguna: lo que el CV respalda ya aparece escrito en algún
+  bullet. Los otros 5 no son aptos y no gastan llamadas.
 - **Los comentarios LaTeX del CV** (`% ADAPTAR`, `% PENDIENTE`) son notas de
   trabajo y el parser los descarta.
 - **El CV real no entra al repo.** Los tests usan `tests/fixtures/cv_sample.tex`.

@@ -53,6 +53,11 @@ class JDRequirements(BaseModel):          # ampliado 2026-09-28, ver Decisiones
     seniority_evidence: str                # cita literal del JD
     role_family: Literal["data", "software", "ml_ai", "automation", "it_ops", "non_technical"]
     role_evidence: str                     # cita literal del JD
+    modality: Literal["remote", "hybrid", "onsite", "undetermined"]
+    modality_evidence: str                 # cita literal del JD
+    workload: Literal["part_time", "full_time", "undetermined"]
+    hours_per_week: float | None
+    workload_evidence: str                 # cita literal; con cifra si hay horas
     ats_keywords: list[str]
 
 class MatchResult(BaseModel):
@@ -65,8 +70,8 @@ class MatchResult(BaseModel):
 ## Orden de construcción
 
 1. `cv_parser.py` + `test_cv_parser.py`: 100 % determinístico. **Hecho.**
-2. `jd_extractor.py`: probar contra JDs reales como fixtures (`data/jds/`). **Código y tests
-   offline hechos; falta la corrida real (`pytest -m llm`).**
+2. `jd_extractor.py`: probar contra JDs reales como fixtures (`data/jds/`). **Hecho;
+   regresión 10/10 con prompt v3 (9 avisos + reescritura de StrategIA).**
 3. `matcher.py`: depende de que los dos anteriores den datos limpios. Empezar con
    overlap de keywords (sets) antes de meter un segundo pase de LLM para reescritura.
    **Capa determinística hecha (2026-09-28). Reescritura hecha (2026-09-28)** en
@@ -152,5 +157,23 @@ class MatchResult(BaseModel):
   (heurística). Un reintento solo de las rechazadas con el motivo; si falla de nuevo, sin
   sugerencia y con motivo visible. Caché `rw-*.json` con modelo, intentos y motivos del
   primer rechazo; lo del caché se revalida al leerlo. Salida en texto plano (no LaTeX).
-- **Pendiente:** fixtures `agents_booster.txt` y `movmo.txt` (Demian los pega después);
-  jornada/carga horaria no está en `JDRequirements` (relevante para 4–6 h/día).
+- **2026-09-28 — Avisos Agents Booster y Movmo** en `data/jds/` (versionados). Movmo es la
+  empresa del aviso "CE20261298" (asumido: los archivos llegaron cruzados y se
+  renombraron). `agents_booster.txt` conserva al final unas notas de Demian que no son
+  del aviso; se dejan a propósito (decisión de Demian) y no son instrucciones para el
+  sistema. Incluye el correo de contacto público del aviso.
+- **2026-09-28 — Prompt v3: modalidad y jornada** en `JDRequirements`, con cita literal.
+  Validación sin LLM: cita literal también en categorías `undetermined` si traen texto
+  (antes se saltaba); horas solo con una cifra en la cita; `part_time` < 35 h/semana ≤
+  `full_time`. Política en `config/fit.yaml`: onsite ⇒ revisar; modalidad no indicada ⇒
+  apta con aviso; más de 30 h/semana o tiempo completo sin cifra ⇒ revisar. Gana el
+  veredicto más restrictivo. "Virtual" cuenta como remoto (lo usa Movmo).
+- **2026-09-28 — Vocabulario:** n8n, GoHighLevel, Twilio, VAPI y WhatsApp Business API,
+  para que cuenten como carencias en vez de esconderse como "no reconocidas" (CE20261298
+  daba "100 % respaldado" con esas 5 herramientas fuera). `stored procedures` ⇒ SQL y
+  bases de datos. "automatizaciones" se agregó como alias y se quitó en el mismo día:
+  es una palabra común, y la reescritura la insertó como término ("flujos con
+  Automatizaciones"). Regla: un alias tiene que ser algo que un ATS buscaría.
+- **2026-09-28 — Reescritura:** para ubicar un término se prefiere el bullet que lo demuestra
+  por implicación sobre el que solo comparte stack (SQL iba a "autenticación con Flask"
+  en vez de "procedimientos almacenados"). Timeout 60 ⇒ 120 s (2 timeouts en ~14 llamadas).

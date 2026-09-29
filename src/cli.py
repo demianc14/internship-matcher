@@ -61,6 +61,9 @@ def cmd_extract(args: list[str]) -> int:
         return req
     print(f"  nivel: {req.seniority_signal}  ← {req.seniority_evidence!r}")
     print(f"  rol:   {req.role_family}  ← {req.role_evidence!r}")
+    print(f"  modalidad: {req.modality}  ← {req.modality_evidence!r}")
+    hours = f", {req.hours_per_week:g} h/semana" if req.hours_per_week is not None else ""
+    print(f"  jornada:   {req.workload}{hours}  ← {req.workload_evidence!r}")
     print(f"  hard skills: {', '.join(req.hard_skills) or '—'}")
     print(f"  otros requisitos: {'; '.join(req.soft_requirements) or '—'}")
     print(f"  ATS: {', '.join(req.ats_keywords)}")

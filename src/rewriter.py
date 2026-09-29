@@ -10,9 +10,9 @@ Nunca entran las carencias (no están en el CV) ni lo que solo respalda una fila
 habilidades: sin un bullet que lo demuestre no hay dónde ponerlo con honestidad.
 
 1. `select_targets` (sin LLM): solo avisos apta/revisar. Cada término va a UN solo
-   bullet en todo el CV (a un ATS le basta encontrarlo una vez): el de mayor
-   match_score entre los que lo demuestran o cuyo proyecto lo usa; empate ⇒ orden
-   del CV. Máximo MAX_BULLETS bullets por aviso.
+   bullet en todo el CV (a un ATS le basta encontrarlo una vez): primero los que lo
+   demuestran por implicación, y si no hay, los cuyo proyecto lo usa; dentro de
+   cada grupo, el de mayor match_score (empate ⇒ orden del CV). Máximo MAX_BULLETS.
 2. Una llamada al LLM por aviso con todos los candidatos (salida estructurada).
 3. `validate_rewrite` (sin LLM), por reescritura: contiene los términos pedidos; no
    agrega otras skills del vocabulario; no pierde keywords del original; todo
@@ -88,9 +88,15 @@ def select_targets(m: JDMatch, req: JDRequirements, vocab: Vocabulary) -> list[R
         return []
     named_somewhere = {k for r in m.bullets for k in r.bullet.keywords}
     home: dict[str, int] = {}  # término → índice (en m.bullets) del bullet que lo recibe
-    for i, r in enumerate(m.bullets):  # ya ordenados por score; empate ⇒ orden del CV
-        implicit = set(r.matched_keywords) - set(r.bullet.keywords)
-        for k in sorted((implicit | set(r.missing_keywords)) - named_somewhere):
+    # Primero los bullets que DEMUESTRAN el término (por implicación) y después los que
+    # solo lo tienen en el stack de su proyecto: "procedimientos almacenados" es mejor
+    # lugar para SQL que un bullet de autenticación del mismo proyecto. Dentro de cada
+    # pasada, m.bullets ya viene por score (empate ⇒ orden del CV).
+    for i, r in enumerate(m.bullets):
+        for k in sorted(set(r.matched_keywords) - set(r.bullet.keywords) - named_somewhere):
+            home.setdefault(k, i)
+    for i, r in enumerate(m.bullets):
+        for k in sorted(set(r.missing_keywords) - named_somewhere):
             home.setdefault(k, i)
 
     by_bullet: dict[int, list[str]] = {}
