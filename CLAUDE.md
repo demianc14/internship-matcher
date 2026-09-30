@@ -167,8 +167,9 @@ class MatchResult(BaseModel):
   skill del vocabulario nunca se ignora. Empresas: sin filtro (el extractor no las captura).
 - **2026-09-30 — Vocabulario:** backend, full-stack, distributed systems, data science,
   prompt engineering y context engineering (separado: no es alias); "multi-agent
-  systems" ⇒ ai agents. SOLID fuera (palabra común). "Prompting" NO es alias de prompt
-  engineering: el curso de Google no cuenta como skill demostrada (decisión).
+  systems" ⇒ ai agents. SOLID fuera (palabra común). "Prompting" SÍ es alias de prompt
+  engineering: la certificación de Google cuenta, igual que la de IA de IBM (decisión de
+  Demian, 2026-09-30; al principio se había dejado fuera).
 - **2026-09-30 — `match-all`** (`src/batch.py`): tabla de `data/jds/*.txt` por veredicto,
   cobertura, respaldo y n de skills. Solo caché por defecto; `--extract` extrae lo que
   falte, avisa el máximo de llamadas, se detiene con la cuota y sigue ante otros errores.

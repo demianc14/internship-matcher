@@ -135,9 +135,10 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   nombres de empresa ("Agents Booster", "Checkatrade") siguen como ruido: el
   extractor no captura la empresa. Con los 9 avisos: 50 de 105 términos reconocidos
   antes; 52 de 87 después de separar el ruido y ampliar el vocabulario.
-- **Prompt engineering no se da por cubierto** con la certificación "Prompting para
-  tareas de trabajo – Google". Es una decisión, no un olvido: no se agregó
-  "prompting" como alias para no convertir un curso corto en una skill demostrada.
+- **Prompt engineering cuenta como cubierto por una certificación.** "Prompting para
+  tareas de trabajo – Google" respalda prompt engineering ("prompting" es alias), igual
+  que "Introducción a la IA – IBM" respalda "artificial intelligence". Es respaldo
+  real pero débil: el matcher no pondera la fuerza de la evidencia (ver arriba).
 - **`match-all` cuida la cuota.** Sin `--extract` no hace ninguna llamada: lo que no
   está en el caché aparece como "sin extraer". Con `--extract` avisa antes cuántas
   llamadas hará como máximo; si la cuota se agota deja de llamar, y un error en un

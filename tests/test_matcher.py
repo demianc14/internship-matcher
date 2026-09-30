@@ -93,6 +93,7 @@ def test_score_is_the_fraction_of_the_jd_the_bullet_shows() -> None:
         ("Back-end", "backend"),
         ("Full Stack", "full-stack"),
         ("ciencia de datos", "data science"),
+        ("Prompting", "prompt engineering"),
     ],
 )
 def test_list_items_are_canonicalized(item: str, canonical: str) -> None:
