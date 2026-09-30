@@ -16,6 +16,9 @@ Dos preguntas separadas, a propósito:
    - in_training: solo aparece marcada "(en formación)" → no se sugiere presentarla;
    - gaps: no está en el CV → se lista, nunca se sugiere agregarla.
    Lo que el vocabulario no reconoce va a `unrecognized`: se reporta, no se descarta.
+   De eso, lo que es parte del título del aviso o nombra una carrera ("Pasante",
+   "Ingeniería en Computación") va a `ignored`: no es una skill, pero se muestra
+   aparte para que un error del filtro se vea.
 
 Por bullet (`MatchResult`, modelo del spec):
 - match_score = |matched_keywords| / |skills del JD|;
@@ -28,6 +31,7 @@ Por bullet (`MatchResult`, modelo del spec):
 - suggested_rewrite = None en esta capa (la reescritura con LLM llega después).
 """
 
+import re
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -79,6 +83,7 @@ class JDMatch(_Model):
     fit: Fit
     requested: list[str]  # skills canónicas del JD (sin idiomas)
     unrecognized: list[str]  # ítems del JD que el vocabulario no reconoce
+    ignored: list[str]  # no reconocidos que son parte del título o una carrera
     covered: list[str]
     in_cv_not_in_bullets: list[str]
     in_training: list[str]
@@ -146,6 +151,31 @@ def normalize_requirements(req: JDRequirements, vocab: Vocabulary) -> tuple[set[
     return requested - vocab.non_skills, unrecognized
 
 
+_EDUCATION = re.compile(
+    r"\b(?:ingenier[ií]as?|licenciaturas?|carreras?|t[ií]tulo universitario|"
+    r"degree|bachelor'?s?|master'?s?|engineering degree)\b",
+    re.IGNORECASE,
+)
+
+
+def split_noise(unrecognized: list[str], req: JDRequirements) -> tuple[list[str], list[str]]:
+    """No reconocidos → (posibles skills, ruido: parte del título o una carrera).
+
+    Solo se aplica a lo que el vocabulario NO reconoce: una skill conocida nunca se
+    descarta aunque esté en el título ("Python Developer")."""
+    title = " ".join(req.title.casefold().split())
+    kept: list[str] = []
+    ignored: list[str] = []
+    seen: set[str] = set()
+    for item in unrecognized:
+        key = " ".join(item.casefold().split())
+        if key in seen:
+            continue
+        seen.add(key)
+        (ignored if key in title or _EDUCATION.search(item) else kept).append(item)
+    return kept, ignored
+
+
 def _ratio(part: set[str], whole: set[str]) -> float:
     return round(len(part) / len(whole), 3) if whole else 0.0
 
@@ -157,7 +187,8 @@ def match(
     vocab: Vocabulary,
     policy: FitPolicy,
 ) -> JDMatch:
-    requested, unrecognized = normalize_requirements(req, vocab)
+    requested, raw_unrecognized = normalize_requirements(req, vocab)
+    unrecognized, ignored = split_noise(raw_unrecognized, req)
 
     shown = {id(b): vocab.expand(b.keywords) for b in bullets}
     covered = requested & set().union(*shown.values())
@@ -187,6 +218,7 @@ def match(
         fit=assess_fit(req, policy),
         requested=sorted(requested),
         unrecognized=unrecognized,
+        ignored=ignored,
         covered=sorted(covered),
         in_cv_not_in_bullets=sorted(in_cv),
         in_training=sorted(in_training),

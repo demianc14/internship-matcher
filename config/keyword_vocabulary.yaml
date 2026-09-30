@@ -45,7 +45,12 @@ keywords:
   # Genérico a propósito: muchos avisos piden "IA" sin más. "ia"/"ai" sueltos
   # respetan límites de palabra, así que no matchean dentro de otras palabras.
   artificial intelligence: [artificial intelligence, inteligencia artificial, ai, ia]
-  ai agents: [ai agents, llm agents, agentic ai, agentic systems, ia agéntica, agentes de ia]
+  ai agents: [ai agents, llm agents, agentic ai, agentic systems, ia agéntica, agentes de ia,
+              multi-agent systems, multi-agent system, sistemas multiagente]
+  prompt engineering: [prompt engineering, ingeniería de prompts]
+  # Relacionado pero no igual a prompt engineering: no es alias.
+  context engineering: [context engineering]
+  data science: [data science, ciencia de datos]
   rag: [rag, retrieval-augmented generation, retrieval augmented generation]
   computer vision: [computer vision, visión por computadora, visión artificial]
 
@@ -89,6 +94,10 @@ keywords:
   jinja2: [jinja2, jinja]
   django: [django]
   flask: [flask]
+  backend: [backend, back-end, back end]
+  full-stack: [full-stack, full stack, fullstack]
+  distributed systems: [distributed systems, sistemas distribuidos]
+  # "SOLID" (principios) queda fuera: en inglés también es una palabra común.
   rest api: [rest api, rest apis, restful, api rest, apis rest]
   apis: [api, apis, web api, web apis]
   databases: [database, databases, base de datos, bases de datos, relational database,

@@ -5,23 +5,29 @@
     python -m src.cli match <jd.txt> [cv] [--rewrite]
                                             veredicto + cobertura del CV frente al JD;
                                             --rewrite sugiere reescrituras (llama a Gemini)
+    python -m src.cli match-all [cv] [--extract]
+                                            todos los avisos de data/jds/, ordenados; solo
+                                            caché, salvo --extract (extrae los que falten)
 
 GEMINI_API_KEY y GEMINI_MODELO se leen del entorno o de .env en la raíz del repo.
 """
 
+import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.batch import Row, jd_files, match_all, uncached
 from src.cv_parser import parse_backing, parse_cv
 from src.jd_extractor import ExtractionError, JDRequirements, extract_requirements
-from src.llm import CuotaAgotada, ErrorDelLLM, cliente_desde_env
+from src.llm import MODELO_POR_DEFECTO, CuotaAgotada, ErrorDelLLM, cliente_desde_env
 from src.matcher import JDMatch, load_fit_policy, match
 from src.rewriter import RewriteOutcome, rewrite
 from src.vocabulary import load_vocabulary
 
 ROOT = Path(__file__).parent.parent
+JD_DIR = ROOT / "data" / "jds"
 DEFAULT_CV = Path.home() / "Documents" / "Documentos Demi" / "Base CV.tex"
 
 
@@ -86,6 +92,8 @@ def print_match(m: JDMatch, top: int = 5) -> None:
     print(f"  en formación ({len(m.in_training)}/{n}):          {_items(m.in_training)}")
     print(f"  no están en tu CV ({len(m.gaps)}/{n}):     {_items(m.gaps)}")
     print(f"  no reconocidas: {_items(m.unrecognized)}")
+    if m.ignored:
+        print(f"  ignoradas (título/formación, no son skills): {_items(m.ignored)}")
     print(f"  cobertura en bullets {m.coverage:.0%} · respaldadas por el CV {m.backed:.0%}")
 
     relevant = [r for r in m.bullets if r.match_score > 0 or r.missing_keywords][:top]
@@ -142,7 +150,63 @@ def cmd_match(args: list[str]) -> int:
     return 0
 
 
-COMMANDS = {"bullets": cmd_bullets, "extract": cmd_extract, "match": cmd_match}
+def _short(values: list[str], limit: int = 3) -> str:
+    if not values:
+        return "—"
+    extra = f" +{len(values) - limit}" if len(values) > limit else ""
+    return ", ".join(values[:limit]) + extra
+
+
+def print_table(rows: list[Row], model: str) -> None:
+    print(f"{len(rows)} avisos en {JD_DIR.relative_to(ROOT)}/  [modelo: {model}]\n")
+    print(f"  {'veredicto':11} {'bullets':>7} {'CV':>5} {'n':>3}  {'archivo':18} {'aviso':36} "
+          "carencias")  # fmt: skip
+    for row in rows:
+        name = Path(row.file).stem[:18]
+        m = row.result
+        if m is None:
+            print(f"  {row.status:11} {'':>7} {'':>5} {'':>3}  {name:18} {row.detail[:70]}")
+            continue
+        title = m.title if len(m.title) <= 36 else m.title[:35] + "…"
+        print(f"  {m.fit.verdict:11} {m.coverage:>7.0%} {m.backed:>5.0%} {len(m.requested):>3}  "
+              f"{name:18} {title:36} {_short(m.gaps)}")  # fmt: skip
+    print(
+        "\nbullets: skills del aviso en tus bullets · CV: respaldadas en cualquier parte del CV ·"
+    )
+    print("n: skills reconocidas (con n chico el porcentaje dice poco). Detalle de uno:")
+    print("  python -m src.cli match data/jds/<archivo>.txt")
+
+
+def cmd_match_all(args: list[str]) -> int:
+    do_extract = "--extract" in args
+    args = [a for a in args if a != "--extract"]
+    cv = Path(args[0]) if args else DEFAULT_CV
+    model = os.environ.get("GEMINI_MODELO", "").strip() or MODELO_POR_DEFECTO
+    files = jd_files(JD_DIR)
+    pending = uncached(files, model)
+    client = None
+    if do_extract and pending:
+        print(f"{len(pending)} aviso(s) sin extraer: hasta {2 * len(pending)} llamadas a {model}.")
+        try:
+            client = cliente_desde_env()
+        except ErrorDelLLM as e:
+            print(f"error del proveedor: {e}", file=sys.stderr)
+            return 1
+    vocab = load_vocabulary()
+    rows = match_all(
+        files, parse_cv(cv, vocab), parse_backing(cv, vocab), vocab, load_fit_policy(), model,
+        client,
+    )  # fmt: skip
+    print_table(rows, model)
+    return 3 if any("sin cuota" in r.detail for r in rows) else 0
+
+
+COMMANDS = {
+    "bullets": cmd_bullets,
+    "extract": cmd_extract,
+    "match": cmd_match,
+    "match-all": cmd_match_all,
+}
 
 
 def main(argv: list[str]) -> int:

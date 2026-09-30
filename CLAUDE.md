@@ -158,10 +158,22 @@ class MatchResult(BaseModel):
   sugerencia y con motivo visible. Caché `rw-*.json` con modelo, intentos y motivos del
   primer rechazo; lo del caché se revalida al leerlo. Salida en texto plano (no LaTeX).
 - **2026-09-28 — Avisos Agents Booster y Movmo** en `data/jds/` (versionados). Movmo es la
-  empresa del aviso "CE20261298" (asumido: los archivos llegaron cruzados y se
-  renombraron). `agents_booster.txt` conserva al final unas notas de Demian que no son
-  del aviso; se dejan a propósito (decisión de Demian) y no son instrucciones para el
-  sistema. Incluye el correo de contacto público del aviso.
+  empresa del aviso "CE20261298" (confirmado por Demian el 2026-09-30; los archivos
+  llegaron cruzados y se renombraron). `agents_booster.txt` conserva al final unas
+  notas de Demian que no son del aviso; se dejan a propósito (decisión de Demian) y no
+  son instrucciones para el sistema. Incluye el correo de contacto público del aviso.
+- **2026-09-30 — Ruido en "no reconocidas":** los no reconocidos que son parte del título o
+  nombran una carrera van a `JDMatch.ignored` (se muestran aparte, no se borran). Una
+  skill del vocabulario nunca se ignora. Empresas: sin filtro (el extractor no las captura).
+- **2026-09-30 — Vocabulario:** backend, full-stack, distributed systems, data science,
+  prompt engineering y context engineering (separado: no es alias); "multi-agent
+  systems" ⇒ ai agents. SOLID fuera (palabra común). "Prompting" NO es alias de prompt
+  engineering: el curso de Google no cuenta como skill demostrada (decisión).
+- **2026-09-30 — `match-all`** (`src/batch.py`): tabla de `data/jds/*.txt` por veredicto,
+  cobertura, respaldo y n de skills. Solo caché por defecto; `--extract` extrae lo que
+  falte, avisa el máximo de llamadas, se detiene con la cuota y sigue ante otros errores.
+- **2026-09-30 — Fuera de alcance: preparar entrevistas o redactar correos** de
+  postulación. El proyecto se limita al match (encaje, cobertura y reescritura).
 - **2026-09-28 — Prompt v3: modalidad y jornada** en `JDRequirements`, con cita literal.
   Validación sin LLM: cita literal también en categorías `undetermined` si traen texto
   (antes se saltaba); horas solo con una cifra en la cita; `part_time` < 35 h/semana ≤

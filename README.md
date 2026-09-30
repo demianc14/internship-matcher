@@ -26,6 +26,8 @@ cp .env.example .env                      # y pega tu GEMINI_API_KEY
 python -m src.cli extract data/jds/strategia.txt
 python -m src.cli match data/jds/strategia.txt   # veredicto + cobertura contra tu CV
 python -m src.cli match data/jds/strategia.txt --rewrite   # + reescrituras sugeridas
+python -m src.cli match-all               # todos los avisos, ordenados (solo caché)
+python -m src.cli match-all --extract     # extrae antes los que falten (gasta cuota)
 pytest && ruff check . && mypy src tests  # offline
 pytest -m llm                             # regresión contra Gemini (usa caché)
 ```
@@ -39,6 +41,7 @@ pytest -m llm                             # regresión contra Gemini (usa caché
 | `src/llm.py` | protocolo `ClienteLLM` + `GeminiCliente` (única parte que habla con un proveedor) | sí |
 | `src/jd_extractor.py` | texto del JD → `JDRequirements` validado con Pydantic; recibe el cliente por inyección | vía `ClienteLLM` |
 | `src/matcher.py` | bullets + respaldo del CV × requisitos → `JDMatch` (veredicto, cobertura, `MatchResult` por bullet) con política en `config/fit.yaml` | no |
+| `src/batch.py` | todos los avisos de `data/jds/` → tabla ordenada por veredicto y cobertura; solo caché salvo `--extract` | solo con `--extract` |
 | `src/rewriter.py` | `JDMatch` → reescrituras de bullets: selección y validación sin LLM, redacción vía `ClienteLLM` | solo la redacción |
 
 El matcher tiene una capa determinística (overlap de sets sobre el vocabulario)
@@ -124,6 +127,23 @@ porque son texto de terceros) como casos de regresión para `jd_extractor`.
   "100 % respaldado" mientras pedía n8n, Twilio, VAPI, GoHighLevel y WhatsApp
   Business API: se agregaron al vocabulario. Revisar siempre la línea de "no
   reconocidas" antes de creerle al porcentaje.
+- **"No reconocidas" separa el ruido, sin esconderlo.** El extractor mete en las
+  keywords ATS el título del cargo y la carrera pedida ("Pasante", "Ingeniería en
+  Computación"). Esos términos no reconocidos que son parte del título o nombran una
+  carrera se muestran aparte como "ignoradas", no se borran. Un término del
+  vocabulario nunca se ignora aunque esté en el título ("Python Developer"). Los
+  nombres de empresa ("Agents Booster", "Checkatrade") siguen como ruido: el
+  extractor no captura la empresa. Con los 9 avisos: 50 de 105 términos reconocidos
+  antes; 52 de 87 después de separar el ruido y ampliar el vocabulario.
+- **Prompt engineering no se da por cubierto** con la certificación "Prompting para
+  tareas de trabajo – Google". Es una decisión, no un olvido: no se agregó
+  "prompting" como alias para no convertir un curso corto en una skill demostrada.
+- **`match-all` cuida la cuota.** Sin `--extract` no hace ninguna llamada: lo que no
+  está en el caché aparece como "sin extraer". Con `--extract` avisa antes cuántas
+  llamadas hará como máximo; si la cuota se agota deja de llamar, y un error en un
+  aviso no detiene los demás. Orden: veredicto, cobertura en bullets, respaldo del
+  CV y, en empate, el aviso con más skills reconocidas (50 % sobre 12 pesa más que
+  sobre 2). Solo lee `data/jds/*.txt`, no la carpeta de regresión.
 - **Cobertura con pocas skills engaña.** El porcentaje se muestra siempre junto con
   cuántas skills reconoció el aviso ("1/1" no es "7/9"). Los avisos no técnicos
   reconocen pocas: la mayoría de sus términos (ventas, compensaciones) están fuera

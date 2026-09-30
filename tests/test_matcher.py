@@ -89,6 +89,10 @@ def test_score_is_the_fraction_of_the_jd_the_bullet_shows() -> None:
         ("MS Excel", "excel"),
         ("IA Agéntica", "ai agents"),
         ("Postgres", "postgresql"),
+        ("multi-agent systems", "ai agents"),
+        ("Back-end", "backend"),
+        ("Full Stack", "full-stack"),
+        ("ciencia de datos", "data science"),
     ],
 )
 def test_list_items_are_canonicalized(item: str, canonical: str) -> None:
@@ -278,3 +282,37 @@ def test_most_restrictive_verdict_wins() -> None:
     req = jd([], seniority_signal="junior", modality="onsite", modality_evidence="presencial",
              role_family="non_technical", role_evidence="ventas")  # fmt: skip
     assert assess_fit(req, POLICY).verdict == "no_apta"
+
+
+# --- Ruido en lo no reconocido -----------------------------------------------------
+
+
+def test_title_and_education_are_ignored_not_hidden() -> None:
+    m = run(
+        ["Radford"],
+        ats=["Pasante", "Data Engineer", "Ingeniería en Computación", "Bachelor's degree"],
+        title="Pasante — AI Systems & Data Engineer",
+    )
+    assert m.unrecognized == ["Radford"]
+    assert m.ignored == [
+        "Pasante", "Data Engineer", "Ingeniería en Computación", "Bachelor's degree",
+    ]  # fmt: skip
+
+
+def test_known_skill_in_the_title_is_never_ignored() -> None:
+    m = run(["Python"], title="Python Developer")
+    assert m.requested == ["python"] and m.ignored == []
+
+
+def test_context_engineering_is_not_prompt_engineering() -> None:
+    assert normalize_requirements(jd(["context engineering"]), VOCAB)[0] == {"context engineering"}
+
+
+def test_solid_is_left_out_of_the_vocabulary() -> None:
+    """Principios SOLID: en inglés "solid" también es una palabra común."""
+    assert normalize_requirements(jd(["SOLID"]), VOCAB) == (set(), ["SOLID"])
+
+
+def test_unrecognized_are_deduplicated_ignoring_case() -> None:
+    m = run(["Radford", "radford", "RADFORD "])
+    assert m.unrecognized == ["Radford"]
